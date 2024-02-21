@@ -257,7 +257,7 @@ class QuantizedWeight(nn.Module):
         """
         TODO(galqiwi): description
         """
-        weight = self(selection)
+        weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
         self.outliers[selection] = admm_prune(
             target=reference_weight - weight,
             XTX=XTX,
