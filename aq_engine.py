@@ -46,6 +46,10 @@ class AQEngine(nn.Module):
         """create a QuantizedLinear with specified args based on the collected hessian (XTX) data"""
         assert isinstance(args.devices, (list, tuple)) and len(args.devices) >= 1, f"Found devices = {args.devices}"
         assert args.devices[0] == self.device, (args.devices[0], self.XTX.device)
+        # https://github.com/pytorch/pytorch/issues/90613
+        # TODO(galqiwi): fix me
+        for device in args.devices:
+            torch.inverse(torch.ones((1, 1), device=device))
         self.quantized_weight = QuantizedWeight(
             XTX=self.XTX.to(device=self.device, dtype=torch.float32),
             reference_weight=self.layer.weight.detach().to(device=self.device, dtype=torch.float32),

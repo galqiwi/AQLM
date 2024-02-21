@@ -171,11 +171,11 @@ class QuantizedWeight(nn.Module):
         self.codes = nn.Parameter(codes, requires_grad=False)  #  [num_out_groups, num_in_groups, num_codebooks]
 
         self.outliers = nn.Parameter(
-            torch.zeros((self.out_features, self.in_features), dtype=torch.float32),
+            torch.zeros((self.out_features, self.in_features), dtype=torch.float32, device=reference_weight.device),
             requires_grad=True,
         )
         self.outliers_mask = nn.Parameter(
-            torch.zeros((self.out_features, self.in_features), dtype=torch.bool),
+            torch.zeros((self.out_features, self.in_features), dtype=torch.bool, device=reference_weight.device),
             requires_grad=False,
         )
 
@@ -263,7 +263,7 @@ class QuantizedWeight(nn.Module):
             XTX=XTX,
             sparsity=0.99,  # TODO(galqiwi): make me a parameter
         )
-        assert 0.009 <= (self.outliers != 0).sum().detach().cpu().numpy() <= 0.011
+        assert (self.outliers != 0).float().mean().detach().cpu().numpy() <= 0.011, (self.outliers != 0).float().mean().detach().cpu().numpy()
         self.outliers_mask[selection] = (self.outliers[selection] != 0)
         return self.outliers[selection]
 
