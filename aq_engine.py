@@ -61,6 +61,7 @@ class AQEngine(nn.Module):
             devices=args.devices,
             verbose=True,
         )
+        self.quantized_weight.outliers.requires_grad = False
 
         differentiable_parameters = nn.ParameterDict(
             {name: param for name, param in self.quantized_weight.named_parameters() if param.requires_grad}
@@ -94,6 +95,13 @@ class AQEngine(nn.Module):
                 if verbose and (epoch * args.steps_per_epoch + step) % args.print_frequency == 0:
                     print(f"epoch={epoch}\tstep={step}\tloss={loss.item():.10f}\t")
 
+                if (step + 1) % 10 == 0:
+                    self.update_outliers(
+                        args.devices,
+                        replicas,
+                        differentiable_parameters,
+                    )
+
             # search for better codes (cluster indices)
             seed = random.getrandbits(256)
             self.beam_search_update_codes_(
@@ -104,6 +112,8 @@ class AQEngine(nn.Module):
                 beam_size=args.beam_size,
                 verbose=True,
             )
+
+        self.quantized_weight.outliers.requires_grad = True
         return self.quantized_weight
 
     def _compute_mse(self, selection: Union[slice, ellipsis] = ...) -> torch.Tensor:
@@ -204,6 +214,57 @@ class AQEngine(nn.Module):
             # gather all code parts and assign them to each replica
             for device, replica in zip(devices, replicas):
                 replica.quantized_weight.codes[...] = Gather.apply(device, 0, *new_code_parts_by_replica)
+
+    def _replace_and_update_outliers(self, params_to_replace: nn.ParameterDict, selection: slice) -> torch.Tensor:
+        dtype = self.quantized_weight.codebooks.dtype
+        for param_name, param_value in params_to_replace.items():
+            replace_parameter_(self.quantized_weight, param_name, param_value)
+        out_channel_selection = slice(
+            selection.start * self.quantized_weight.out_group_size,
+            selection.stop * self.quantized_weight.out_group_size,
+        )
+        reference_weight = self.layer.weight.detach()[out_channel_selection].to(dtype)
+        return self.quantized_weight.update_outliers(
+            self.XTX.to(dtype), reference_weight, selection=selection,
+        ).clone()
+
+    @torch.no_grad()
+    def update_outliers(
+        self,
+        devices: Sequence[torch.device],
+        replicas: Sequence[AQEngine],
+        parameters_to_replicate: nn.ParameterDict,
+        **kwargs,
+    ):
+        """Update self.quantized_weight.codes in-place via beam search"""
+        if len(devices) == 1:  # single device
+            dtype = self.quantized_weight.codebooks.dtype
+            assert replicas is None
+            self.quantized_weight.update_outliers(
+                self.XTX.to(dtype),
+                self.layer.weight.detach().to(dtype),
+            )
+        else:
+            assert replicas[0] is self
+            replicated_parameters = torch.nn.parallel.replicate(parameters_to_replicate, devices)
+            num_output_groups = self.quantized_weight.out_features // self.quantized_weight.out_group_size
+            shard_size = (num_output_groups - 1) // len(devices) + 1
+            active_slices_by_replica = [
+                slice(i * shard_size, min((i + 1) * shard_size, num_output_groups)) for i in range(len(devices))
+            ]
+
+            funcs_by_replica = [replica._replace_and_update_outliers for replica in replicas]
+            inputs_by_replica = [(dict(), active_slices_by_replica[0])]
+            for i in range(1, len(devices)):
+                inputs_by_replica.append((replicated_parameters[i], active_slices_by_replica[i]))
+            kwargs_by_replica = [dict() for _ in range(len(devices))]
+            new_outliers_by_replica = torch.nn.parallel.parallel_apply(
+                funcs_by_replica, inputs_by_replica, kwargs_by_replica, devices=devices
+            )
+            # gather all code parts and assign them to each replica
+            for device, replica in zip(devices, replicas):
+                replica.quantized_weight.outliers[...] = Gather.apply(device, 0, *new_outliers_by_replica)
+                replica.quantized_weight.outliers_mask[...] = replica.quantized_weight.outliers != 0
 
 
 def replace_parameter_(module: nn.Module, name: str, new_value: torch.Tensor):
