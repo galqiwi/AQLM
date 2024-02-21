@@ -245,7 +245,7 @@ class QuantizedWeight(nn.Module):
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
         outliers = self.outliers[selection] * self.outliers_mask[selection].double()
 
-        return weight + outliers
+        return weight + outliers.to(weight.dtype)
 
     @torch.no_grad()
     def update_outliers(
