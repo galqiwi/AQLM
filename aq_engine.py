@@ -248,27 +248,28 @@ class AQEngine(nn.Module):
                 self.XTX.to(dtype),
                 self.layer.weight.detach().to(dtype),
             )
-        else:
-            assert replicas[0] is self
-            replicated_parameters = torch.nn.parallel.replicate(parameters_to_replicate, devices)
-            num_output_groups = self.quantized_weight.out_features // self.quantized_weight.out_group_size
-            shard_size = (num_output_groups - 1) // len(devices) + 1
-            active_slices_by_replica = [
-                slice(i * shard_size, min((i + 1) * shard_size, num_output_groups)) for i in range(len(devices))
-            ]
+            return
 
-            funcs_by_replica = [replica._replace_and_update_outliers for replica in replicas]
-            inputs_by_replica = [(dict(), active_slices_by_replica[0])]
-            for i in range(1, len(devices)):
-                inputs_by_replica.append((replicated_parameters[i], active_slices_by_replica[i]))
-            kwargs_by_replica = [dict() for _ in range(len(devices))]
-            new_outliers_by_replica = torch.nn.parallel.parallel_apply(
-                funcs_by_replica, inputs_by_replica, kwargs_by_replica, devices=devices
-            )
-            # gather all code parts and assign them to each replica
-            for device, replica in zip(devices, replicas):
-                replica.quantized_weight.outliers[...] = Gather.apply(device, 0, *new_outliers_by_replica)
-                replica.quantized_weight.outliers_mask[...] = replica.quantized_weight.outliers != 0
+        assert replicas[0] is self
+        replicated_parameters = torch.nn.parallel.replicate(parameters_to_replicate, devices)
+        num_output_groups = self.quantized_weight.out_features // self.quantized_weight.out_group_size
+        shard_size = (num_output_groups - 1) // len(devices) + 1
+        active_slices_by_replica = [
+            slice(i * shard_size, min((i + 1) * shard_size, num_output_groups)) for i in range(len(devices))
+        ]
+
+        funcs_by_replica = [replica._replace_and_update_outliers for replica in replicas]
+        inputs_by_replica = [(dict(), active_slices_by_replica[0])]
+        for i in range(1, len(devices)):
+            inputs_by_replica.append((replicated_parameters[i], active_slices_by_replica[i]))
+        kwargs_by_replica = [dict() for _ in range(len(devices))]
+        new_outliers_by_replica = torch.nn.parallel.parallel_apply(
+            funcs_by_replica, inputs_by_replica, kwargs_by_replica, devices=devices
+        )
+        # gather all code parts and assign them to each replica
+        for device, replica in zip(devices, replicas):
+            replica.quantized_weight.outliers[...] = Gather.apply(device, 0, *new_outliers_by_replica)
+            replica.quantized_weight.outliers_mask[...] = replica.quantized_weight.outliers != 0
 
 
 def replace_parameter_(module: nn.Module, name: str, new_value: torch.Tensor):
