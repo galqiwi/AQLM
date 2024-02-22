@@ -17,7 +17,6 @@ def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20,
     target = target.clone().detach()
 
     norm = torch.diag(XTX).sqrt() + 1e-8
-    print(norm.min(), norm.max())
     XTX = XTX / norm
     XTX = (XTX.T / norm).T
     W = (target.float().detach() * norm).T
