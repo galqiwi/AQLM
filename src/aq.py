@@ -293,7 +293,7 @@ class QuantizedWeight(nn.Module):
         """
         self.codes[selection] = beam_search_optimal_codes(
             XTX=XTX,
-            reference_weight=reference_weight,
+            reference_weight=reference_weight - self.outliers[selection],
             codebooks=self.get_codebooks(),
             prev_codes=self.codes[selection],
             scales=self.get_scales()[selection],
