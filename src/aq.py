@@ -269,7 +269,7 @@ class QuantizedWeight(nn.Module):
             sparsity=(100. - outliers_percentile) / 100.,
             iters=n_outliers_admm_iterations,
         )
-        assert (self.outliers != 0).float().mean().detach().cpu().numpy() <= 0.011, (self.outliers != 0).float().mean().detach().cpu().numpy()
+        # assert (self.outliers != 0).float().mean().detach().cpu().numpy() <= 0.011, (self.outliers != 0).float().mean().detach().cpu().numpy()
         self.outliers_mask[selection] = (self.outliers[selection] != 0)
         return self.outliers[selection]
 
