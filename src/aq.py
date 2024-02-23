@@ -16,6 +16,9 @@ def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20,
     XTX = XTX.clone().detach()
     target = target.clone().detach()
 
+    assert 0. <= sparsity <= 1.
+    assert iterative_prune < iters, 'galqiwi didn\'t test admm_prune when iterative_prune >= iters'
+
     norm = torch.diag(XTX).sqrt() + 1e-8
     XTX = XTX / norm
     XTX = (XTX.T / norm).T
@@ -252,6 +255,9 @@ class QuantizedWeight(nn.Module):
         XTX: torch.Tensor,
         reference_weight: torch.Tensor,
         selection: Union[slice, ellipsis, torch.LongTensor] = ...,
+        *,
+        n_outliers_admm_iterations: int = 20,
+        outliers_percentile: float = 1.0,
     ) -> torch.Tensor:
         """
         TODO(galqiwi): description
@@ -260,7 +266,8 @@ class QuantizedWeight(nn.Module):
         self.outliers[selection] = admm_prune(
             target=reference_weight - weight,
             XTX=XTX,
-            sparsity=0.99,  # TODO(galqiwi): make me a parameter
+            sparsity=(100. - outliers_percentile) / 100.,
+            iters=n_outliers_admm_iterations,
         )
         assert (self.outliers != 0).float().mean().detach().cpu().numpy() <= 0.011, (self.outliers != 0).float().mean().detach().cpu().numpy()
         self.outliers_mask[selection] = (self.outliers[selection] != 0)

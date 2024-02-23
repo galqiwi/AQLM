@@ -90,6 +90,7 @@ class AQEngine(nn.Module):
                     raise ValueError(f"Quantization loss is {loss}")
                 if step == 0 and args.relative_mse_tolerance is not None:
                     if loss.item() / previous_best_loss > (1.0 - args.relative_mse_tolerance):
+                        print(f'outliers part: {(self.quantized_weight.outliers != 0).detach().float().mean().cpu().numpy()}')
                         return self.quantized_weight  # early stopping; no updates after last epoch's beam search
                     previous_best_loss = min(previous_best_loss, loss.item())
 
@@ -99,11 +100,17 @@ class AQEngine(nn.Module):
                 if verbose and (epoch * args.steps_per_epoch + step) % args.print_frequency == 0:
                     print(f"epoch={epoch}\tstep={step}\tloss={loss.item():.10f}\t")
 
-                if (step + 1) % 10 == 0:
+                assert (
+                    args.steps_per_epoch % args.outliers_update_period == 0,
+                    'steps_per_epoch should be divisible by outliers_update_period',
+                )
+                if (step + 1) % args.outliers_update_period == 0:
                     self.update_outliers(
                         args.devices,
                         replicas,
                         differentiable_parameters,
+                        n_outliers_admm_iterations=args.n_outliers_admm_iterations,
+                        outliers_percentile=args.outliers_percentile,
                     )
 
             # search for better codes (cluster indices)
@@ -118,6 +125,7 @@ class AQEngine(nn.Module):
             )
 
         self.quantized_weight.outliers.requires_grad = True
+        print(f'outliers part: {(self.quantized_weight.outliers != 0).detach().float().mean().cpu().numpy()}')
         return self.quantized_weight
 
     def _compute_mse(self, selection: Union[slice, ellipsis] = ...) -> torch.Tensor:
@@ -219,7 +227,7 @@ class AQEngine(nn.Module):
             for device, replica in zip(devices, replicas):
                 replica.quantized_weight.codes[...] = Gather.apply(device, 0, *new_code_parts_by_replica)
 
-    def _replace_and_update_outliers(self, params_to_replace: nn.ParameterDict, selection: slice) -> torch.Tensor:
+    def _replace_and_update_outliers(self, params_to_replace: nn.ParameterDict, selection: slice, **kwargs) -> torch.Tensor:
         dtype = self.quantized_weight.codebooks.dtype
         for param_name, param_value in params_to_replace.items():
             replace_parameter_(self.quantized_weight, param_name, param_value)
@@ -229,7 +237,7 @@ class AQEngine(nn.Module):
         )
         reference_weight = self.layer.weight.detach()[out_channel_selection].to(dtype)
         return self.quantized_weight.update_outliers(
-            self.XTX.to(dtype), reference_weight, selection=selection,
+            self.XTX.to(dtype), reference_weight, selection=selection, **kwargs,
         ).clone()
 
     @torch.no_grad()
@@ -247,6 +255,7 @@ class AQEngine(nn.Module):
             self.quantized_weight.update_outliers(
                 self.XTX.to(dtype),
                 self.layer.weight.detach().to(dtype),
+                **kwargs,
             )
             return
 
@@ -262,7 +271,7 @@ class AQEngine(nn.Module):
         inputs_by_replica = [(dict(), active_slices_by_replica[0])]
         for i in range(1, len(devices)):
             inputs_by_replica.append((replicated_parameters[i], active_slices_by_replica[i]))
-        kwargs_by_replica = [dict() for _ in range(len(devices))]
+        kwargs_by_replica = [dict(**kwargs) for _ in range(len(devices))]
         new_outliers_by_replica = torch.nn.parallel.parallel_apply(
             funcs_by_replica, inputs_by_replica, kwargs_by_replica, devices=devices
         )
