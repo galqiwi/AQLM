@@ -741,7 +741,7 @@ if __name__ == "__main__":
         args.group_size = args.in_group_size * args.out_group_size
 
         wandb.init(
-            project=args.exp_name,
+            name=args.exp_name,
             config={a: getattr(args, a) for a in dir(args) if not a.startswith("_")},
         )
 
