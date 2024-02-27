@@ -67,6 +67,9 @@ def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20,
                 mask[topk.indices] = 0
                 mask = mask.reshape(W.shape)
                 del topk
+            mask = (mask.sum(dim=1) > mask.sum(dim=1).float().quantile(sparsity))
+            mask = mask[:, None].repeat((1, W.shape[1]))
+            assert mask.shape == W.shape
 
         Z = (W + U) * mask
 
