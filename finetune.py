@@ -8,6 +8,8 @@ import torch
 import torch.nn.functional as F
 from accelerate.hooks import remove_hook_from_submodules
 
+import transformers
+
 try:
     import wandb
     has_wandb = True
@@ -346,6 +348,12 @@ if __name__ == "__main__":
     del orig_model
     torch.cuda.empty_cache()
     quant_model = get_model(args.base_model, args.quant_model, args.dtype, args.model_seqlen, args.device_map)
+    
+    for layer_idx, layer in enumerate(quant_model.model.layers):
+        layer.mlp.act_fn = transformers.activations.SiLUActivation()
+        layer.self_attn.layer_idx = layer_idx
+        layer.self_attn.attention_dropout = 0.0
+
     if not args.device_map:
         quant_model = quant_model.to(device)
 
