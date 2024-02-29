@@ -253,9 +253,12 @@ class QuantizedWeight(nn.Module):
 
         """
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
-        outliers = self.outliers[selection] * self.outliers_mask[selection].double()
 
-        return weight + outliers.to(weight.dtype)
+        with torch.cuda.amp.autocast(enabled=False):
+            outliers = self.outliers[selection] * self.outliers_mask[selection].double()
+            output = weight + outliers.to(weight.dtype)
+        
+        return output 
 
     @torch.no_grad()
     def update_outliers(
