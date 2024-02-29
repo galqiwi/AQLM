@@ -136,15 +136,15 @@ def finetune(
 
             
 
-            print((~torch.isfinite(inputs)).sum())
-            print(inputs)
-            print((~torch.isfinite(targets)).sum())
-            print(targets)
-            print((~torch.isfinite(outputs)).float().mean())
-            print(outputs)
-            print(loss.item())
+            # print((~torch.isfinite(inputs)).sum())
+            # print(inputs)
+            # print((~torch.isfinite(targets)).sum())
+            # print(targets)
+            # print((~torch.isfinite(outputs)).float().mean())
+            # print(outputs)
+            # print(loss.item())
 
-            time.sleep(5)
+            # time.sleep(5)
             
             if not torch.isfinite(loss).item():
                 raise ValueError(f"Fine-tuning loss is {loss}")
