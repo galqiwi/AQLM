@@ -4,6 +4,8 @@ import argparse
 from copy import deepcopy
 from tqdm import tqdm, trange
 
+import time
+
 import torch
 import torch.nn.functional as F
 from accelerate.hooks import remove_hook_from_submodules
@@ -107,10 +109,27 @@ def finetune(
             inputs = _extract_into_tensor(train_loader, batch_indices, device=device)
             targets = _extract_into_tensor(train_logits, batch_indices, device=device)
 
+            for name, values in model.named_parameters():
+                if (~torch.isfinite(values)).sum().item() == 0:
+                    continue
+                print((~torch.isfinite(values)).sum().item(), name)
+            
             with torch.autocast(device_type='cuda', enabled=args.amp):
                 outputs = model(inputs).logits
                 loss = kl_div(outputs, targets, args.temperature)
 
+            
+
+            print((~torch.isfinite(inputs)).sum())
+            print(inputs)
+            print((~torch.isfinite(targets)).sum())
+            print(targets)
+            print((~torch.isfinite(outputs)).float().mean())
+            print(outputs)
+            print(loss.item())
+
+            time.sleep(5)
+            
             if not torch.isfinite(loss).item():
                 raise ValueError(f"Fine-tuning loss is {loss}")
 
