@@ -24,6 +24,22 @@ from src.utils import maybe_get_0th_element, _extract_into_tensor
 
 from main import perplexity_eval
 
+import src.aq
+
+def fix_layer(layer):
+    for child_name, child in layer.named_children():
+        if 'QuantizedWeight' not in str(type(child)):
+            fix_layer(child)
+            continue
+
+        def new_forward(*args, **kwargs):
+            return src.aq.QuantizedWeight.forward(child, *args, **kwargs)
+        
+        child.forward = new_forward
+
+def fix_model(model):
+    for layer in model.model.layers:
+        fix_layer(layer)
 
 @torch.inference_mode()
 def cache_logits(model, dataloader, device):
@@ -367,6 +383,7 @@ if __name__ == "__main__":
     del orig_model
     torch.cuda.empty_cache()
     quant_model = get_model(args.base_model, args.quant_model, args.dtype, args.model_seqlen, args.device_map)
+    fix_model(quant_model)
     
     for layer_idx, layer in enumerate(quant_model.model.layers):
         layer.mlp.act_fn = transformers.activations.SiLUActivation()
