@@ -12,17 +12,16 @@ from src.utils import ellipsis, maybe_script
 
 
 def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20, per_out=False):
-    # TODO(galqiwi): refactor me and put somewhere
     XTX = XTX.clone().detach()
     target = target.clone().detach()
 
     assert 0. <= sparsity <= 1.
     assert iterative_prune < iters, 'galqiwi didn\'t test admm_prune when iterative_prune >= iters'
 
-    norm = torch.diag(XTX).sqrt() + 1e-8
-    XTX = XTX / norm
-    XTX = (XTX.T / norm).T
-    W = (target.float().detach() * norm).T
+    norm = (torch.diag(XTX).sqrt() + 1e-8).clone().detach()
+    # XTX = XTX / norm
+    # XTX = (XTX.T / norm).T
+    W = (target.float().detach()).T
 
     rho0 = percdamp * torch.diag(XTX).mean()
     diag = torch.arange(XTX.shape[0], device=XTX.device)
@@ -61,7 +60,7 @@ def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20,
                 mask = ((W + U).abs() >= thres.unsqueeze(0))
                 del thres
             else:
-                topk = torch.topk((W + U).abs().flatten(), k=int(W.numel() * sparsity), largest=False)
+                topk = torch.topk(((W + U).T * norm).T.abs().flatten(), k=int(W.numel() * sparsity), largest=False)
                 # topk will have .indices and .values
                 mask = torch.ones(W.numel(), dtype=torch.bool, device=W.device)
                 mask[topk.indices] = 0
@@ -75,7 +74,7 @@ def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20,
         W = XTXinv.matmul(XY + rho * (Z - U))
 
     Z = (W + U) * mask
-    out = (Z.T / norm)
+    out = (Z.T)
 
     target.data = out.reshape(target.shape).to(target.data.dtype)
 
@@ -272,7 +271,6 @@ class QuantizedWeight(nn.Module):
             sparsity=(100. - outliers_percentile) / 100.,
             iters=n_outliers_admm_iterations,
         )
-        # assert (self.outliers != 0).float().mean().detach().cpu().numpy() <= 0.011, (self.outliers != 0).float().mean().detach().cpu().numpy()
         self.outliers_mask[selection] = (self.outliers[selection] != 0)
         return self.outliers[selection]
 
