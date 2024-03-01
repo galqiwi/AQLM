@@ -11,7 +11,7 @@ from src.kmeans import find_nearest_cluster, fit_faiss_kmeans, fit_kmeans, fit_k
 from src.utils import ellipsis, maybe_script
 
 
-def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20, per_out=False):
+def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=0, iters=20, per_out=False):
     # TODO(galqiwi): refactor me and put somewhere
     XTX = XTX.clone().detach()
     target = target.clone().detach()
