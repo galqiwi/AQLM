@@ -160,3 +160,9 @@ cython_debug/
 .idea/
 
 data/
+
+*.pt
+
+output/
+
+*.sh
