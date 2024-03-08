@@ -14,6 +14,98 @@ from src.aq import QuantizedWeight
 from src.utils import ellipsis
 
 
+class OutlierOptimizer:
+    def __init__(
+        self,
+        XTX: torch.Tensor,
+        sparsity: float,
+        n_iters: int = 20,
+        rho: float = 1.,
+        is_iterative: bool = True,
+    ):
+        self.XTX = XTX.detach()
+        self.device = self.XTX.device
+        self.sparsity = sparsity
+        self.n_iters = n_iters
+        self.rho = rho
+        self.is_iterative = is_iterative
+
+        self.in_size, _ = self.XTX.shape
+        assert self.XTX.shape == (self.in_size, self.in_size)
+
+        self.norm = torch.diag(XTX).sqrt().clone().detach() + 1e-8
+        self.XTX_norm = (
+            (XTX.clone().detach() / self.norm).T / self.norm
+        ).T
+
+        self.XTX_admm = (
+            self.XTX_norm +
+            torch.eye(self.in_size, device=self.device) * rho
+        )
+
+        self.XTX_admm_inv = torch.inverse(self.XTX_admm)
+
+    def get_loss(self, outliers_value: torch.Tensor) -> torch.Tensor:
+        return (outliers_value.double() @ self.XTX.double()).flatten() @ outliers_value.double().flatten() / len(outliers_value)
+
+    def wanda(self, target: torch.Tensor) -> torch.Tensor:
+        target = target.detach()
+
+        out_size, in_size = target.shape
+        assert in_size == self.in_size
+
+        XTXDiag = torch.diag(self.XTX)
+        assert XTXDiag.shape == (in_size,)
+
+        top_idxs = torch.topk(
+            ((target ** 2) * XTXDiag).flatten(),
+            k=int(target.numel() * self.sparsity),
+            largest=False,
+        ).indices
+
+        mask = torch.ones(target.numel(), dtype=torch.bool, device=target.device)
+        mask[top_idxs] = 0
+        mask = mask.reshape(target.shape)
+
+        return mask
+
+    def _get_outliers(self, target: torch.Tensor):
+        W = (target.float().detach() * self.norm).T
+        XY = self.XTX_norm.matmul(W)
+
+        U = torch.zeros_like(W)
+
+        mask = self.wanda(target=(W + U).T / self.norm).T
+
+        for iter_idx in range(self.n_iters):
+            if self.is_iterative and iter_idx > 0:
+                mask = self.wanda(target=(W + U).T / self.norm).T
+
+            Z = (W + U) * mask
+            U = U + (W - Z)
+            W = self.XTX_admm_inv.matmul(XY + self.rho * (Z - U))
+
+        Z = (W + U) * mask
+        out = (Z.T / self.norm)
+        out = out.reshape(target.shape).to(target.data.dtype)
+
+        return out
+
+    def get_outliers(self, target: torch.Tensor, old_outliers: Optional[torch.Tensor] = None) -> torch.Tensor:
+        outliers = self._get_outliers(target)
+
+        if old_outliers is None:
+            return outliers
+
+        old_loss = self.get_loss(old_outliers.detach())
+        new_loss = self.get_loss(outliers.detach())
+
+        if new_loss < old_loss:
+            return outliers
+        else:
+            return old_outliers
+
+
 class AQEngine(nn.Module):
     """A wrapper class that runs AQ training for a single linear layer. All the important math is in aq.py"""
 
@@ -27,6 +119,7 @@ class AQEngine(nn.Module):
         )
         self.quantized_weight: Optional[QuantizedWeight] = None
         self.nsamples = 0
+        self.outliers_optimizer: Optional[torch.Tensor] = None
 
     @torch.no_grad()
     def add_batch(self, inp: torch.Tensor):
@@ -110,7 +203,6 @@ class AQEngine(nn.Module):
                         args.devices,
                         replicas,
                         differentiable_parameters,
-                        n_outliers_admm_iterations=args.n_outliers_admm_iterations,
                         outliers_percentile=args.outliers_percentile,
                     )
 
@@ -228,7 +320,7 @@ class AQEngine(nn.Module):
             for device, replica in zip(devices, replicas):
                 replica.quantized_weight.codes[...] = Gather.apply(device, 0, *new_code_parts_by_replica)
 
-    def _replace_and_update_outliers(self, params_to_replace: nn.ParameterDict, selection: slice, **kwargs) -> torch.Tensor:
+    def _replace_and_update_outliers(self, params_to_replace: nn.ParameterDict, selection: slice, outliers_percentile: float) -> torch.Tensor:
         dtype = self.quantized_weight.codebooks.dtype
         for param_name, param_value in params_to_replace.items():
             replace_parameter_(self.quantized_weight, param_name, param_value)
@@ -237,9 +329,19 @@ class AQEngine(nn.Module):
             selection.stop * self.quantized_weight.out_group_size,
         )
         reference_weight = self.layer.weight.detach()[out_channel_selection].to(dtype)
+
+        if self.outliers_optimizer is None:
+            self.outliers_optimizer = OutlierOptimizer(
+                XTX=self.XTX,
+                sparsity=(100. - outliers_percentile) / 100.,
+            )
+
         return self.quantized_weight.update_outliers(
-            self.XTX.to(dtype), reference_weight, selection=selection, **kwargs,
+            reference_weight=reference_weight,
+            outliers_optimizer=self.outliers_optimizer,
+            selection=selection,
         ).clone()
+
 
     @torch.no_grad()
     def update_outliers(
@@ -247,17 +349,23 @@ class AQEngine(nn.Module):
         devices: Sequence[torch.device],
         replicas: Sequence[AQEngine],
         parameters_to_replicate: nn.ParameterDict,
-        **kwargs,
+        outliers_percentile: float,
     ):
         begin = time.perf_counter()
         """Update self.quantized_weight.codes in-place via beam search"""
         if len(devices) == 1:  # single device
             dtype = self.quantized_weight.codebooks.dtype
             assert replicas is None
+
+            if self.outliers_optimizer is None:
+                self.outliers_optimizer = OutlierOptimizer(
+                    XTX=self.XTX,
+                    sparsity=(100. - outliers_percentile) / 100.,
+                )
+
             self.quantized_weight.update_outliers(
-                self.XTX.to(dtype),
-                self.layer.weight.detach().to(dtype),
-                **kwargs,
+                reference_weight=self.layer.weight.detach().to(dtype),
+                outliers_optimizer=self.outliers_optimizer,
             )
             return
 
@@ -273,14 +381,13 @@ class AQEngine(nn.Module):
         inputs_by_replica = [(dict(), active_slices_by_replica[0])]
         for i in range(1, len(devices)):
             inputs_by_replica.append((replicated_parameters[i], active_slices_by_replica[i]))
-        kwargs_by_replica = [dict(**kwargs) for _ in range(len(devices))]
+        kwargs_by_replica = [dict(outliers_percentile=outliers_percentile) for _ in range(len(devices))]
         new_outliers_by_replica = torch.nn.parallel.parallel_apply(
             funcs_by_replica, inputs_by_replica, kwargs_by_replica, devices=devices
         )
         # gather all code parts and assign them to each replica
         for device, replica in zip(devices, replicas):
             replica.quantized_weight.outliers[...] = Gather.apply(device, 0, *new_outliers_by_replica)
-            replica.quantized_weight.outliers_mask[...] = replica.quantized_weight.outliers != 0
         print(time.perf_counter() - begin)
 
 

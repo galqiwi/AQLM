@@ -176,10 +176,6 @@ class QuantizedWeight(nn.Module):
             torch.zeros((self.out_features, self.in_features), dtype=torch.float32, device=reference_weight.device),
             requires_grad=True,
         )
-        self.outliers_mask = nn.Parameter(
-            torch.zeros((self.out_features, self.in_features), dtype=torch.bool, device=reference_weight.device),
-            requires_grad=False,
-        )
 
     def get_codebooks(self) -> torch.Tensor:
         """Get quantization codebooks or reconstruct them from second level quantization (see codebook_values_nbits)"""
@@ -247,7 +243,7 @@ class QuantizedWeight(nn.Module):
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
 
         with torch.cuda.amp.autocast(enabled=False):
-            outliers = self.outliers[selection] * self.outliers_mask[selection].double()
+            outliers = self.outliers[selection] * (self.outliers[selection] != 0).double()
             output = weight + outliers.to(weight.dtype)
         
         return output 
@@ -255,25 +251,20 @@ class QuantizedWeight(nn.Module):
     @torch.no_grad()
     def update_outliers(
         self,
-        XTX: torch.Tensor,
         reference_weight: torch.Tensor,
+        outliers_optimizer: any,
         selection: Union[slice, ellipsis, torch.LongTensor] = ...,
-        *,
-        n_outliers_admm_iterations: int = 20,
-        outliers_percentile: float = 1.0,
     ) -> torch.Tensor:
         """
         TODO(galqiwi): description
         """
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
-        self.outliers[selection] = admm_prune(
+
+        self.outliers[selection] = outliers_optimizer.get_outliers(
             target=reference_weight - weight,
-            XTX=XTX,
-            sparsity=(100. - outliers_percentile) / 100.,
-            iters=n_outliers_admm_iterations,
+            old_outliers=self.outliers[selection],
         )
-        # assert (self.outliers != 0).float().mean().detach().cpu().numpy() <= 0.011, (self.outliers != 0).float().mean().detach().cpu().numpy()
-        self.outliers_mask[selection] = (self.outliers[selection] != 0)
+
         return self.outliers[selection]
 
 
