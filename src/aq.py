@@ -243,7 +243,7 @@ class QuantizedWeight(nn.Module):
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
 
         with torch.cuda.amp.autocast(enabled=False):
-            outliers = self.outliers[selection] * (self.outliers[selection] != 0).double()
+            outliers = self.outliers[selection] * (self.outliers[selection].detach() != 0).double()
             output = weight + outliers.to(weight.dtype)
         
         return output 
