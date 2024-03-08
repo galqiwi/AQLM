@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import torch
 import functools
@@ -54,7 +56,6 @@ def custom_admm(
     target: torch.Tensor,
     XTX: torch.Tensor,
     sparsity: float,
-    percdamp: float = 1e-3,
     n_iters: int = 20,
     rho: float = 1,
     mask_rule: any = None,
@@ -76,9 +77,7 @@ def custom_admm(
     XTX = (XTX.T / norm).T
     W = (target.float().detach() * norm).T
 
-    rho0 = percdamp * torch.diag(XTX).mean()
     diag = torch.arange(XTX.shape[0], device=XTX.device)
-    XTX[diag, diag] += rho0
 
     XY = XTX.matmul(W)
     XTX[diag, diag] += rho
@@ -86,12 +85,15 @@ def custom_admm(
 
     XTXinv = torch.inverse(XTX)
 
+
+
     U = torch.zeros_like(W)
 
     assert n_iters > 0
     mask = mask_rule(target=(W + U).T / norm, XTX=XTX_orig, sparsity=sparsity).T
+
     for itt in range(n_iters):
-        if is_iterative:
+        if is_iterative and itt > 0:
             mask = mask_rule(target=(W + U).T / norm, XTX=XTX_orig, sparsity=sparsity).T
         Z = (W + U) * mask
         U = U + (W - Z)
@@ -203,20 +205,112 @@ def custom_galqiwi_mask_2(target: torch.Tensor, XTX: torch.Tensor, sparsity: flo
     return mask
 
 
+
+def plot_rho(target_name: str):
+    target_base = get_tensor(target_name)
+
+    percdamps = np.logspace(-2, 0, 21)
+    losses = []
+    for percdamp in percdamps:
+        outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, percdamp=percdamp)
+        loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
+        losses.append(loss)
+
+    plt.plot(percdamps, losses)
+    Path("./output").mkdir(parents=True, exist_ok=True)
+    plt.savefig(os.path.join('./output', f'{target_name}.png'))
+    plt.clf()
+
+
+class OutlierOptimizer:
+    def __init__(
+        self,
+        XTX: torch.Tensor,
+        sparsity: float,
+        n_iters: int = 20,
+        rho: float = 1.,
+        is_iterative: bool = True,
+    ):
+        self.XTX = XTX.detach()
+        self.device = self.XTX.device
+        self.sparsity = sparsity
+        self.n_iters = n_iters
+        self.rho = rho
+        self.is_iterative = is_iterative
+
+        self.in_size, _ = self.XTX.shape
+        assert self.XTX.shape == (self.in_size, self.in_size)
+
+        self.norm = torch.diag(XTX).sqrt().clone().detach() + 1e-8
+        self.XTX_norm = (
+            (XTX.clone().detach() / self.norm).T / self.norm
+        ).T
+
+        self.XTX_admm = (
+            self.XTX_norm +
+            torch.eye(self.in_size, device=self.device) * rho
+        )
+
+        self.XTX_admm_inv = torch.inverse(self.XTX_admm)
+
+    def wanda(self, target: torch.Tensor) -> torch.Tensor:
+        target = target.detach()
+
+        out_size, in_size = target.shape
+        assert in_size == self.in_size
+
+        XTXDiag = torch.diag(self.XTX)
+        assert XTXDiag.shape == (in_size,)
+
+        top_idxs = torch.topk(
+            ((target ** 2) * XTXDiag).flatten(),
+            k=int(target.numel() * self.sparsity),
+            largest=False,
+        ).indices
+
+        mask = torch.ones(target.numel(), dtype=torch.bool, device=target.device)
+        mask[top_idxs] = 0
+        mask = mask.reshape(target.shape)
+
+        return mask
+
+    def get_outliers(self, target: torch.Tensor) -> torch.Tensor:
+        W = (target.float().detach() * self.norm).T
+        XY = self.XTX_norm.matmul(W)
+
+        U = torch.zeros_like(W)
+
+        mask = self.wanda(target=(W + U).T / self.norm).T
+
+        for iter_idx in range(self.n_iters):
+            if self.is_iterative and iter_idx > 0:
+                mask = self.wanda(target=(W + U).T / self.norm).T
+
+            Z = (W + U) * mask
+            U = U + (W - Z)
+            W = self.XTX_admm_inv.matmul(XY + self.rho * (Z - U))
+
+        Z = (W + U) * mask
+        out = (Z.T / self.norm)
+        out = out.reshape(target.shape).to(target.data.dtype)
+
+        return out
+
+
 def test(target_name: str = 'LLAMA2_TARGET_BASE.pt', is_iterative: bool = False) -> List[any]:
     results = []
     target_base = get_tensor(target_name)
 
     # target_base = target_base[:1024]
 
-    exp_name = f'{"admm_reference":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
-
-    outliers = admm_reference(target=target_base, XTX=get_XTX(), sparsity=0.99, iterative_prune=15 if is_iterative else 0)
-    loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
-    results.append({
-        'name': f'{exp_name}',
-        'loss': loss,
-    })
+    # exp_name = f'{"admm_reference":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
+    #
+    # outliers = admm_reference(target=target_base, XTX=get_XTX(), sparsity=0.99, iterative_prune=15 if is_iterative else 0)
+    # loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
+    # results.append({
+    #     'name': f'{exp_name}',
+    #     'loss': loss,
+    # })
 
     exp_name = f'{"admm_custom":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
 
@@ -236,9 +330,23 @@ def test(target_name: str = 'LLAMA2_TARGET_BASE.pt', is_iterative: bool = False)
     #     'loss': loss,
     # })
 
-    exp_name = f'{"admm_custom_sgpt":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
+    # exp_name = f'{"admm_custom_sgpt":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
+    #
+    # outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, mask_rule=sparsegpt_mask, is_iterative=is_iterative)
+    # loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
+    # results.append({
+    #     'name': f'{exp_name}',
+    #     'loss': loss,
+    # })
 
-    outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, mask_rule=sparsegpt_mask, is_iterative=is_iterative)
+    exp_name = f'{"admm_custom_opt":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
+
+    begin = time.perf_counter()
+    opt = OutlierOptimizer(XTX=get_XTX(), is_iterative=is_iterative, sparsity=0.99)
+    print(time.perf_counter() - begin)
+    begin = time.perf_counter()
+    outliers = opt.get_outliers(target=target_base)
+    print(time.perf_counter() - begin)
     loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
     results.append({
         'name': f'{exp_name}',
@@ -257,28 +365,11 @@ def test(target_name: str = 'LLAMA2_TARGET_BASE.pt', is_iterative: bool = False)
     return results
 
 
-def plot_rho(target_name: str):
-    target_base = get_tensor(target_name)
-
-    percdamps = np.logspace(-2, 0, 21)
-    losses = []
-    for percdamp in percdamps:
-        print(percdamp)
-        outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, percdamp=percdamp)
-        loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
-        losses.append(loss)
-
-    plt.plot(percdamps, losses)
-    Path("./output").mkdir(parents=True, exist_ok=True)
-    plt.savefig(os.path.join('./output', f'{target_name}.png'))
-    plt.clf()
-
-
 def main():
     targets = [
         'LLAMA2_TARGET_BASE.pt',
-        'LLAMA2_DIFF_BASE.pt',
-        'LLAMA2_DIFF_TUNED.pt',
+        # 'LLAMA2_DIFF_BASE.pt',
+        # 'LLAMA2_DIFF_TUNED.pt',
     ]
 
     # for target in targets:
@@ -286,7 +377,7 @@ def main():
     #     plot_rho(target)
 
     results = []
-    for is_iterative, target in tqdm.tqdm(list(itertools.product((False, True), targets))):
+    for is_iterative, target in list(itertools.product((False,), targets)):
         results.extend(test(target_name=target, is_iterative=is_iterative))
 
     for result in results:
