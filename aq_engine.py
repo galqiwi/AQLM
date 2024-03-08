@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+import time
 from argparse import Namespace
 from typing import Optional, Sequence, Union
 
@@ -248,6 +249,7 @@ class AQEngine(nn.Module):
         parameters_to_replicate: nn.ParameterDict,
         **kwargs,
     ):
+        begin = time.perf_counter()
         """Update self.quantized_weight.codes in-place via beam search"""
         if len(devices) == 1:  # single device
             dtype = self.quantized_weight.codebooks.dtype
@@ -279,6 +281,7 @@ class AQEngine(nn.Module):
         for device, replica in zip(devices, replicas):
             replica.quantized_weight.outliers[...] = Gather.apply(device, 0, *new_outliers_by_replica)
             replica.quantized_weight.outliers_mask[...] = replica.quantized_weight.outliers != 0
+        print(time.perf_counter() - begin)
 
 
 def replace_parameter_(module: nn.Module, name: str, new_value: torch.Tensor):
