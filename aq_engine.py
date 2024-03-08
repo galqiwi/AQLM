@@ -320,6 +320,14 @@ class AQEngine(nn.Module):
             for device, replica in zip(devices, replicas):
                 replica.quantized_weight.codes[...] = Gather.apply(device, 0, *new_code_parts_by_replica)
 
+    def setup_outliers_optimizer(self, outliers_percentile):
+        if self.outliers_optimizer is not None:
+            return
+        self.outliers_optimizer = OutlierOptimizer(
+            XTX=self.XTX,
+            sparsity=(100. - outliers_percentile) / 100.,
+        )
+
     def _replace_and_update_outliers(self, params_to_replace: nn.ParameterDict, selection: slice, outliers_percentile: float) -> torch.Tensor:
         dtype = self.quantized_weight.codebooks.dtype
         for param_name, param_value in params_to_replace.items():
@@ -330,11 +338,7 @@ class AQEngine(nn.Module):
         )
         reference_weight = self.layer.weight.detach()[out_channel_selection].to(dtype)
 
-        if self.outliers_optimizer is None:
-            self.outliers_optimizer = OutlierOptimizer(
-                XTX=self.XTX,
-                sparsity=(100. - outliers_percentile) / 100.,
-            )
+        self.setup_outliers_optimizer(outliers_percentile)
 
         return self.quantized_weight.update_outliers(
             reference_weight=reference_weight,
@@ -357,11 +361,7 @@ class AQEngine(nn.Module):
             dtype = self.quantized_weight.codebooks.dtype
             assert replicas is None
 
-            if self.outliers_optimizer is None:
-                self.outliers_optimizer = OutlierOptimizer(
-                    XTX=self.XTX,
-                    sparsity=(100. - outliers_percentile) / 100.,
-                )
+            self.setup_outliers_optimizer(outliers_percentile)
 
             self.quantized_weight.update_outliers(
                 reference_weight=self.layer.weight.detach().to(dtype),
