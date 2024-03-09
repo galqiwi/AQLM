@@ -123,7 +123,7 @@ def finetune_groupwise(
             loss_numerator += loss.item()
             loss_denominator += 1
             if verbose and (epoch * steps_per_epoch + step) % args.print_frequency == 0:
-                for handler_name, handler in aq_handlers:
+                for handler_name, handler in aq_handlers.items():
                     print(
                         handler_name,
                         handler.quantized_weight.outliers.min().item(),
@@ -134,7 +134,7 @@ def finetune_groupwise(
                 print(f"epoch={epoch}\tstep={step}\tloss={loss_numerator / loss_denominator:.10f}\t")
 
         if verbose and (epoch * steps_per_epoch + step) % args.print_frequency != 0:
-            for handler_name, handler in aq_handlers:
+            for handler_name, handler in aq_handlers.items():
                 print(
                     handler_name,
                     handler.quantized_weight.outliers.min().item(),
