@@ -59,6 +59,10 @@ def finetune_groupwise(
 
     # initialize trainable parameters on main device; prepare to send them to replicas
     differentiable_parameters_by_name = {name: param for name, param in layer.named_parameters() if param.requires_grad}
+
+    for name, param in layer.named_parameters():
+        print(name, param.requires_grad)
+
     param_names, differentiable_parameters = zip(*differentiable_parameters_by_name.items())
     differentiable_parameters = nn.ParameterList(differentiable_parameters)
     if replicas:

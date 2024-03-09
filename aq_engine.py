@@ -164,8 +164,6 @@ class AQEngine(nn.Module):
         differentiable_parameters = nn.ParameterDict(
             {name: param for name, param in self.quantized_weight.named_parameters() if param.requires_grad}
         )
-        print(list(self.quantized_weight.named_parameters()))
-        print(differentiable_parameters)
         opt = torch.optim.Adam(differentiable_parameters.values(), lr=args.lr, betas=(0.0, 0.95), amsgrad=True)
 
         replicas = None
