@@ -218,7 +218,7 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
             print(layer)
             layer = layer.to(dtype=torch.float32)
             with using_tf32(enabled=True):
-                layer = finetune_groupwise(layer=layer, inps=inps, outs=outs, args=args, **forward_args)
+                layer = finetune_groupwise(layer=layer, inps=inps, outs=outs, args=args, aq_handlers=aq_handlers, **forward_args)
             layer = layer.to(dtype=layer_dtype_original)
             print("FINISHED FINETUNING")
         if args.save:

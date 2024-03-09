@@ -22,6 +22,7 @@ def finetune_groupwise(
     inps: Sequence[torch.Tensor],
     outs: Sequence[torch.Tensor],
     args: Namespace,
+    aq_handlers: any,
     verbose: bool = True,
     **kwargs,
 ) -> nn.Module:
@@ -122,9 +123,25 @@ def finetune_groupwise(
             loss_numerator += loss.item()
             loss_denominator += 1
             if verbose and (epoch * steps_per_epoch + step) % args.print_frequency == 0:
+                for handler_name, handler in aq_handlers:
+                    print(
+                        handler_name,
+                        handler.quantized_weight.outliers.min().item(),
+                        handler.quantized_weight.outliers.max().item(),
+                        handler.quantized_weight.outliers.mean().item(),
+                        handler.quantized_weight.outliers.std().item(),
+                    )
                 print(f"epoch={epoch}\tstep={step}\tloss={loss_numerator / loss_denominator:.10f}\t")
 
         if verbose and (epoch * steps_per_epoch + step) % args.print_frequency != 0:
+            for handler_name, handler in aq_handlers:
+                print(
+                    handler_name,
+                    handler.quantized_weight.outliers.min().item(),
+                    handler.quantized_weight.outliers.max().item(),
+                    handler.quantized_weight.outliers.mean().item(),
+                    handler.quantized_weight.outliers.std().item(),
+                )
             print(f"epoch={epoch}\tstep={step}\tloss={loss_numerator / loss_denominator:.10f}\t")
 
         if args.finetune_relative_mse_tolerance is not None:
