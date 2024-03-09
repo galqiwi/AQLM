@@ -159,7 +159,7 @@ class AQEngine(nn.Module):
             devices=args.devices,
             verbose=True,
         )
-        self.quantized_weight.outliers.requires_grad = True
+        self.quantized_weight.outliers.requires_grad = False
 
         differentiable_parameters = nn.ParameterDict(
             {name: param for name, param in self.quantized_weight.named_parameters() if param.requires_grad}
