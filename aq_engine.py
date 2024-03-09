@@ -100,8 +100,6 @@ class OutlierOptimizer:
         old_loss = self.get_loss(target - old_outliers.detach())
         new_loss = self.get_loss(target - outliers.detach())
 
-        print(old_loss, new_loss)
-
         if new_loss < old_loss:
             return outliers
         else:
