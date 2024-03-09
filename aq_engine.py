@@ -93,6 +93,7 @@ class OutlierOptimizer:
 
     def get_outliers(self, target: torch.Tensor, old_outliers: Optional[torch.Tensor] = None) -> torch.Tensor:
         outliers = self._get_outliers(target)
+        print('outliers:', target.shape, self.sparsity, outliers.abs().max().item())
 
         if old_outliers is None:
             return outliers
