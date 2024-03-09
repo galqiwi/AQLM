@@ -45,8 +45,8 @@ class OutlierOptimizer:
 
         self.XTX_admm_inv = torch.inverse(self.XTX_admm)
 
-    def get_loss(self, outliers_value: torch.Tensor) -> torch.Tensor:
-        return (outliers_value.double() @ self.XTX.double()).flatten() @ outliers_value.double().flatten() / len(outliers_value)
+    def get_loss(self, target_diff: torch.Tensor) -> torch.Tensor:
+        return (target_diff.double() @ self.XTX.double()).flatten() @ target_diff.double().flatten() / len(target_diff)
 
     def wanda(self, target: torch.Tensor) -> torch.Tensor:
         target = target.detach()
@@ -98,8 +98,8 @@ class OutlierOptimizer:
         if old_outliers is None:
             return outliers
 
-        old_loss = self.get_loss(old_outliers.detach())
-        new_loss = self.get_loss(outliers.detach())
+        old_loss = self.get_loss(target - old_outliers.detach())
+        new_loss = self.get_loss(target - outliers.detach())
 
         print(old_loss, new_loss)
 
