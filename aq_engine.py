@@ -185,6 +185,7 @@ class AQEngine(nn.Module):
                 if step == 0 and args.relative_mse_tolerance is not None:
                     if loss.item() / previous_best_loss > (1.0 - args.relative_mse_tolerance):
                         print(f'outliers part: {(self.quantized_weight.outliers != 0).detach().float().mean().cpu().numpy()}')
+                        self.quantized_weight.outliers.requires_grad = True
                         return self.quantized_weight  # early stopping; no updates after last epoch's beam search
                     previous_best_loss = min(previous_best_loss, loss.item())
 
