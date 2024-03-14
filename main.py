@@ -782,18 +782,18 @@ if __name__ == "__main__":
 
     print(n_params)
 
-    outliers_param_size = 0
+    outliers_param_bits = 0
     for name, param in model.named_parameters():
         if 'outliers' not in name:
             continue
         print(name)
-        outliers_param_size += param.nelement() * param.element_size()
+        outliers_param_bits += param.nelement() * param.element_size() * 8
 
-    print(f'outliers_param_size={outliers_param_size}')
+    print(f'outliers_param_bits={outliers_param_bits}')
 
     print(f'{n_non_outlier_bits=}')
 
-    print(f'n_bits_per_param={(n_non_outlier_bits + outliers_param_size) / n_params}')
+    print(f'n_bits_per_param={(n_non_outlier_bits + outliers_param_bits) / n_params}')
 
     print(f"eval: {torch.cuda.max_memory_allocated()=:,}")
     if args.wandb:
