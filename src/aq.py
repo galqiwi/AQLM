@@ -11,6 +11,21 @@ from src.kmeans import find_nearest_cluster, fit_faiss_kmeans, fit_kmeans, fit_k
 from src.utils import ellipsis, maybe_script
 
 
+class Outliers(nn.Module):
+    def __init__(self, out_features, in_features):
+        super().__init__()
+        self.out_features = out_features
+        self.in_features = in_features
+        self.outliers = nn.Parameter(
+            torch.zeros((self.out_features, self.in_features), dtype=torch.float32, device=reference_weight.device),
+            requires_grad=True,
+        )
+
+    def forward(self, selection):
+        with torch.cuda.amp.autocast(enabled=False):
+            return self.outliers[selection] * (self.outliers[selection].detach() != 0).double()
+
+
 def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20, per_out=False):
     # TODO(galqiwi): refactor me and put somewhere
     XTX = XTX.clone().detach()
@@ -172,10 +187,7 @@ class QuantizedWeight(nn.Module):
         )  # [num_codebooks, codebook_size, out_group_size, in_group_size]
         self.codes = nn.Parameter(codes, requires_grad=False)  #  [num_out_groups, num_in_groups, num_codebooks]
 
-        self.outliers = nn.Parameter(
-            torch.zeros((self.out_features, self.in_features), dtype=torch.float32, device=reference_weight.device),
-            requires_grad=True,
-        )
+        self.outliers = Outliers(self.out_features, self.in_features)
 
     def get_codebooks(self) -> torch.Tensor:
         """Get quantization codebooks or reconstruct them from second level quantization (see codebook_values_nbits)"""
@@ -243,8 +255,7 @@ class QuantizedWeight(nn.Module):
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
 
         with torch.cuda.amp.autocast(enabled=False):
-            outliers = self.outliers[selection] * (self.outliers[selection].detach() != 0).double()
-            output = weight + outliers.to(weight.dtype)
+            output = weight + self.outliers(selection).to(weight.dtype)
         
         return output 
 
@@ -260,7 +271,7 @@ class QuantizedWeight(nn.Module):
         """
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
 
-        self.outliers[selection] = outliers_optimizer.get_outliers(
+        self.outliers.outliers[selection] = outliers_optimizer.get_outliers(
             target=reference_weight - weight,
             old_outliers=self.outliers[selection],
         )
