@@ -395,7 +395,7 @@ class QuantizedWeight(nn.Module):
         with torch.cuda.amp.autocast(enabled=False):
             if not hasattr(self.outliers, 'outliers_quant'):
                 print('QuantizedOutliers fix')
-                self.outliers_quant = QuantizedOutliers(outliers=self.outliers)
+                self.outliers_quant = QuantizedOutliers(outliers=self.outliers.clone().detach())
                 self.outliers = None
 
             outliers = self.outliers_quant()[selection] * (self.outliers_quant()[selection].detach() != 0).double()
