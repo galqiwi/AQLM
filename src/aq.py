@@ -157,8 +157,12 @@ class QuantizedOutliers(nn.Module):
         super().__init__()
         self.outliers_shape = outliers.shape
         outliers_sparse = outliers.to_sparse_coo()
-        self.outliers_values = ValuesCompressor.compress_values(outliers_sparse.values())
-        self.outliers_matrix = MaskCompressor.compress_mask(outliers != 0.)
+        self.outliers_values = nn.ParameterList([
+            nn.Parameter(param, requires_grad=False) for param in ValuesCompressor.compress_values(outliers_sparse.values())
+        ])
+        self.outliers_matrix = nn.ParameterList([
+            nn.Parameter(param, requires_grad=False) for param in MaskCompressor.compress_mask(outliers != 0.)
+        ])
 
     def forward(self) -> torch.Tensor:
         indices = MaskCompressor.decompress_mask(*self.outliers_matrix).to_sparse_coo().indices()
