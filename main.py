@@ -757,6 +757,7 @@ if __name__ == "__main__":
     datasets = ["wikitext2", "ptb", "c4"]
     if args.new_eval:
         datasets = ["wikitext2", "ptb-new", "c4-new"]
+    datasets = ["wikitext2"]
     for dataset in datasets:
         testloader = get_loaders(
             dataset,
@@ -780,7 +781,7 @@ if __name__ == "__main__":
     print(f'{param_size=} {buffer_size=} model_size={param_size + buffer_size}')
 
     param_size = 0
-    for name, param in model.named_parameters:
+    for name, param in model.named_parameters():
         if 'outliers' not in name:
             continue
         print(name)
