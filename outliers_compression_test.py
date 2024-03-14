@@ -3,7 +3,7 @@ import unittest
 import torch
 import numpy as np
 
-from outliers_comopression import MaskCompressor, ValuesCompressor
+from outliers_comopression import MaskCompressor, ValuesCompressor, QuantizedOutliers
 
 
 class MyTestCase(unittest.TestCase):
@@ -29,6 +29,11 @@ class MyTestCase(unittest.TestCase):
             length, values_compressed, min_values, max_values = ValuesCompressor.compress_values(values, block_size=block_size)
             values_decompressed = ValuesCompressor.decompress_values(length, values_compressed, min_values, max_values, block_size=block_size)
             torch.testing.assert_close(values, values_decompressed)
+
+    def test_compress_outliers(self):
+        outliers = torch.tensor([0, 4, 2, 17], dtype=torch.float64).reshape(2, 2)
+        quantized_outliers = QuantizedOutliers(outliers=outliers)
+        torch.testing.assert_close(outliers, quantized_outliers())
 
 
 if __name__ == '__main__':

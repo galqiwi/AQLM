@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import torch.nn as nn
 
 
 class MaskCompressor:
@@ -130,3 +131,18 @@ class ValuesCompressor:
         values = min_values[:, None] + (max_values - min_values)[:, None] * (values.float() / 15)
         values = values.reshape(-1)
         return values[:length]
+
+
+class QuantizedOutliers(nn.Module):
+    def __init__(self, outliers: torch.Tensor):
+        super().__init__()
+        outliers_sparse = outliers.to_sparse_coo()
+        self.outliers_values = ValuesCompressor.compress_values(outliers_sparse.values())
+        self.outliers_matrix = MaskCompressor.compress_mask(outliers != 0.)
+
+    def forward(self) -> torch.Tensor:
+        indices = MaskCompressor.decompress_mask(*self.outliers_matrix).to_sparse_coo().indices()
+        return torch.sparse_coo_tensor(
+            indices=indices,
+            values=ValuesCompressor.decompress_values(*self.outliers_values),
+        ).to_dense()
