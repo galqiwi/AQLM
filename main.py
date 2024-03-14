@@ -748,9 +748,7 @@ if __name__ == "__main__":
     print("\n============ Load model... ============")
     model = get_model(args.model_path, args.load, args.dtype, args.model_seqlen).train(False)
 
-    if not args.load and not args.no_quant:
-        print("\n============ Quantizing model... ============")
-        quantize_model(model, args)
+    layers = get_layers(model)
 
     print("\n============ Evaluating perplexity... ============")
     torch.cuda.reset_peak_memory_stats()
@@ -771,27 +769,31 @@ if __name__ == "__main__":
 
     print(list(k for k, v in model.named_parameters()))
 
-    param_size = 0
-    for param in model.parameters():
-        param_size += param.nelement() * param.element_size()
-    buffer_size = 0
-    for buffer in model.buffers():
-        buffer_size += buffer.nelement() * buffer.element_size()
+    n_params = 0
+    n_non_outlier_bits = 0
 
-    print(f'{param_size=} {buffer_size=} model_size={param_size + buffer_size}')
+    for layer in get_layers(model):
+        for _, submodule in layer.named_modules():
+            if 'QuantizedWeight' not in str(type(submodule)):
+                continue
+            n_new_params = submodule.in_features * submodule.out_features
+            n_non_outlier_bits += n_new_params * submodule.estimate_nbits_per_parameter()
+            n_params += n_new_params
 
-    param_size = 0
+    print(n_params)
+
+    outliers_param_size = 0
     for name, param in model.named_parameters():
         if 'outliers' not in name:
             continue
         print(name)
-        param_size += param.nelement() * param.element_size()
+        outliers_param_size += param.nelement() * param.element_size()
 
-    print(f'outliers_param_size={param_size}')
+    print(f'outliers_param_size={outliers_param_size}')
 
+    print(f'{n_non_outlier_bits=}')
 
-    torch.save(model.state_dict(), '/extra_disk_1/galqiwi/tmp/todel.pt')
-
+    print(f'n_bits_per_param={(n_non_outlier_bits + outliers_param_size) / n_params}')
 
     print(f"eval: {torch.cuda.max_memory_allocated()=:,}")
     if args.wandb:
