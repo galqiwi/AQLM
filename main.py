@@ -780,6 +780,16 @@ if __name__ == "__main__":
 
     print(f'{param_size=} {buffer_size=} model_size={param_size + buffer_size}')
 
+    param_size = 0
+    for name, param in model.named_parameters:
+        if 'outliers' not in name:
+            continue
+        print(name)
+        param_size += param.nelement() * param.element_size()
+
+    print(f'outliers_param_size={param_size}')
+
+
     print(f"eval: {torch.cuda.max_memory_allocated()=:,}")
     if args.wandb:
         wandb.log({"max_cuda_mem_eval": round(torch.cuda.max_memory_allocated() / 1e9, 2)})
