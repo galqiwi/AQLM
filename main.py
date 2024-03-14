@@ -769,7 +769,6 @@ if __name__ == "__main__":
         perplexity_eval(model, testloader, args)
 
     print(list(k for k, v in model.named_parameters()))
-    torch.save(model.state_dict(), '/extra_disk_1/galqiwi/tmp/todel.pt')
 
     param_size = 0
     for param in model.parameters():
@@ -788,6 +787,9 @@ if __name__ == "__main__":
         param_size += param.nelement() * param.element_size()
 
     print(f'outliers_param_size={param_size}')
+
+
+    torch.save(model.state_dict(), '/extra_disk_1/galqiwi/tmp/todel.pt')
 
 
     print(f"eval: {torch.cuda.max_memory_allocated()=:,}")
