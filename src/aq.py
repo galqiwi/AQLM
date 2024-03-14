@@ -19,6 +19,7 @@ import torch.nn as nn
 class MaskCompressor:
     @classmethod
     def compress_mask(cls, mask: torch.Tensor):
+        device = mask.device
         mask = mask.cpu().detach()
         assert mask.dtype == torch.bool
         h, w = mask.shape
@@ -30,10 +31,11 @@ class MaskCompressor:
         idx_diff_compressed = cls.compress_diff(idx_diff)
         assert idx_diff_compressed.dtype == torch.int8
 
-        return torch.LongTensor([idx[0], h, w]), idx_diff_compressed
+        return torch.LongTensor([idx[0], h, w]), idx_diff_compressed.to(device)
 
     @classmethod
     def decompress_mask(cls, first_idx: torch.Tensor, idx_diff_compressed: torch.Tensor):
+        device = idx_diff_compressed.device
         idx_diff_compressed = idx_diff_compressed.cpu().detach()
         first_idx = first_idx.cpu().detach()
         assert first_idx.dtype == torch.int64
@@ -48,7 +50,7 @@ class MaskCompressor:
         output = cls.get_mask(idx, h.item(), w.item())
         assert output.dtype == torch.bool
 
-        return output.cuda()
+        return output.to(device)
 
     @staticmethod
     def get_idx(mask: torch.Tensor) -> torch.Tensor:
@@ -153,6 +155,7 @@ class ValuesCompressor:
 class QuantizedOutliers(nn.Module):
     def __init__(self, outliers: torch.Tensor):
         super().__init__()
+        self.outliers_shape = outliers.shape
         outliers_sparse = outliers.to_sparse_coo()
         self.outliers_values = ValuesCompressor.compress_values(outliers_sparse.values())
         self.outliers_matrix = MaskCompressor.compress_mask(outliers != 0.)
@@ -162,6 +165,7 @@ class QuantizedOutliers(nn.Module):
         return torch.sparse_coo_tensor(
             indices=indices,
             values=ValuesCompressor.decompress_values(*self.outliers_values),
+            size=self.outliers_shape,
         ).to_dense()
 
 
