@@ -11,6 +11,16 @@ from src.kmeans import find_nearest_cluster, fit_faiss_kmeans, fit_kmeans, fit_k
 from src.utils import ellipsis, maybe_script
 
 
+class QuantizedOutliers(nn.Module):
+    def __init__(self, outliers: torch.Tensor):
+        super().__init__()
+        self.outliers = outliers
+
+
+    def forward(self) -> torch.Tensor:
+        return self.outliers
+
+
 def admm_prune(target, XTX, sparsity, percdamp=.1, iterative_prune=15, iters=20, per_out=False):
     # TODO(galqiwi): refactor me and put somewhere
     XTX = XTX.clone().detach()
@@ -243,7 +253,10 @@ class QuantizedWeight(nn.Module):
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
 
         with torch.cuda.amp.autocast(enabled=False):
-            outliers = self.outliers[selection] * (self.outliers[selection].detach() != 0).double()
+            if isinstance(self.outliers, torch.Tensor):
+                self.outliers = QuantizedOutliers(outliers=self.outliers)
+
+            outliers = self.outliers()[selection] * (self.outliers()[selection].detach() != 0).double()
             output = weight + outliers.to(weight.dtype)
         
         return output 
