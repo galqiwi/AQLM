@@ -40,6 +40,11 @@ class MyTestCase(unittest.TestCase):
         quantized_outliers = QuantizedOutliers(outliers=outliers)
         torch.testing.assert_close(outliers, quantized_outliers())
 
+    def test_compress_outliers_3(self):
+        outliers = torch.tensor([1, 1, 0, 1, 1, 0], dtype=torch.float64).reshape(2, 3)
+        quantized_outliers = QuantizedOutliers(outliers=outliers)
+        torch.testing.assert_close(outliers, quantized_outliers())
+
 
 if __name__ == '__main__':
     unittest.main()

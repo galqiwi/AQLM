@@ -404,9 +404,9 @@ class QuantizedWeight(nn.Module):
             if not hasattr(self.outliers, 'outliers_quant'):
                 print('QuantizedOutliers fix')
                 self.outliers_quant = QuantizedOutliers(outliers=self.outliers.clone().detach())
-                # self.outliers = None
+                self.outliers = self.outliers_quant()
 
-            outliers = self.outliers_quant()[selection] * (self.outliers_quant()[selection].detach() != 0).double()
+            outliers = self.outliers[selection] * (self.outliers[selection].detach() != 0).double()
             output = weight + outliers.to(weight.dtype)
         
         return output 
