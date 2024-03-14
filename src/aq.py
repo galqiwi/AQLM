@@ -19,6 +19,7 @@ import torch.nn as nn
 class MaskCompressor:
     @classmethod
     def compress_mask(cls, mask: torch.Tensor):
+        mask = mask.cpu().detach()
         assert mask.dtype == torch.bool
         h, w = mask.shape
 
@@ -33,6 +34,8 @@ class MaskCompressor:
 
     @classmethod
     def decompress_mask(cls, first_idx: torch.Tensor, idx_diff_compressed: torch.Tensor):
+        idx_diff_compressed = idx_diff_compressed.cpu().detach()
+        first_idx = first_idx.cpu().detach()
         assert first_idx.dtype == torch.int64
         assert idx_diff_compressed.dtype == torch.int8
 
@@ -45,7 +48,7 @@ class MaskCompressor:
         output = cls.get_mask(idx, h.item(), w.item())
         assert output.dtype == torch.bool
 
-        return output
+        return output.cuda()
 
     @staticmethod
     def get_idx(mask: torch.Tensor) -> torch.Tensor:
@@ -108,6 +111,7 @@ class ValuesCompressor:
                 torch.full(
                     size=(block_size - length % block_size,),
                     fill_value=append_value,
+                    device=values.device,
                 ),
             ])
 
