@@ -747,7 +747,6 @@ if __name__ == "__main__":
 
     print("\n============ Load model... ============")
     model = get_model(args.model_path, args.load, args.dtype, args.model_seqlen).train(False)
-    print(list(k for k, v in model.named_parameters()))
 
     if not args.load and not args.no_quant:
         print("\n============ Quantizing model... ============")
@@ -768,6 +767,18 @@ if __name__ == "__main__":
         )
         args.dataset_name = dataset
         perplexity_eval(model, testloader, args)
+
+    print(list(k for k, v in model.named_parameters()))
+    torch.save('/extra_disk_1/galqiwi/tmp/todel.pt', model.state_dict())
+
+    param_size = 0
+    for param in model.parameters():
+        param_size += param.nelement() * param.element_size()
+    buffer_size = 0
+    for buffer in model.buffers():
+        buffer_size += buffer.nelement() * buffer.element_size()
+
+    print(f'{param_size=} {buffer_size=} model_size={param_size + buffer_size}')
 
     print(f"eval: {torch.cuda.max_memory_allocated()=:,}")
     if args.wandb:
