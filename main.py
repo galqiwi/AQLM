@@ -769,7 +769,7 @@ if __name__ == "__main__":
         perplexity_eval(model, testloader, args)
 
     print(list(k for k, v in model.named_parameters()))
-    # torch.save(model.state_dict(), '/extra_disk_1/galqiwi/tmp/todel.pt')
+    torch.save(model.state_dict(), '/extra_disk_1/galqiwi/tmp/todel.pt')
 
     param_size = 0
     for param in model.parameters():
