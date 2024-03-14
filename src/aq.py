@@ -401,7 +401,7 @@ class QuantizedWeight(nn.Module):
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
 
         with torch.cuda.amp.autocast(enabled=False):
-            if not hasattr(self.outliers, 'outliers_quant'):
+            if not hasattr(self, 'outliers_quant'):
                 print('QuantizedOutliers fix')
                 self.outliers_quant = QuantizedOutliers(outliers=self.outliers.clone().detach())
                 self.outliers_quant_data = self.outliers_quant()
