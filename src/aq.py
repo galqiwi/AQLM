@@ -405,6 +405,7 @@ class QuantizedWeight(nn.Module):
                 print('QuantizedOutliers fix')
                 self.outliers_quant = QuantizedOutliers(outliers=self.outliers.clone().detach())
                 self.outliers_quant_data = self.outliers_quant()
+                self.outliers = None
 
             outliers = self.outliers_quant_data[selection] * (self.outliers_quant_data[selection].detach() != 0).double()
             output = weight + outliers.to(weight.dtype)

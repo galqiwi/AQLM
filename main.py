@@ -747,6 +747,7 @@ if __name__ == "__main__":
 
     print("\n============ Load model... ============")
     model = get_model(args.model_path, args.load, args.dtype, args.model_seqlen).train(False)
+    print(list(k for k, v in model.named_parameters()))
 
     if not args.load and not args.no_quant:
         print("\n============ Quantizing model... ============")
