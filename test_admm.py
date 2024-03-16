@@ -59,7 +59,7 @@ def custom_admm(
     n_iters: int = 20,
     rho: float = 1,
     mask_rule: any = None,
-    is_iterative: bool = False,
+    is_iterative: str = '',
 ) -> torch.Tensor:
     if mask_rule is None:
         mask_rule = wanda
@@ -92,9 +92,16 @@ def custom_admm(
     assert n_iters > 0
     mask = mask_rule(target=(W + U).T / norm, XTX=XTX_orig, sparsity=sparsity).T
 
-    for itt in range(n_iters):
-        if is_iterative and itt > 0:
-            mask = mask_rule(target=(W + U).T / norm, XTX=XTX_orig, sparsity=sparsity).T
+    for itt in range(n_iters * 2):
+        if is_iterative != '' and itt > 0:
+            current_sparsity = sparsity
+            if is_iterative == 'linear_iter':
+                current_sparsity = (sparsity) * (itt / (n_iters - 1))
+            elif is_iterative == 'cube_iter':
+                current_sparsity = (sparsity) * (itt / (n_iters - 1)) ** 3
+            if itt >= n_iters:
+                current_sparsity = sparsity
+            mask = mask_rule(target=(W + U).T / norm, XTX=XTX_orig, sparsity=current_sparsity).T
         Z = (W + U) * mask
         U = U + (W - Z)
         W = XTXinv.matmul(XY + rho * (Z - U))
@@ -297,22 +304,22 @@ class OutlierOptimizer:
         return out
 
 
-def test(target_name: str = 'LLAMA2_TARGET_BASE.pt', is_iterative: bool = False) -> List[any]:
+def test(target_name: str = 'LLAMA2_TARGET_BASE.pt', is_iterative: str = '') -> List[any]:
     results = []
     target_base = get_tensor(target_name)
 
     # target_base = target_base[:1024]
 
-    # exp_name = f'{"admm_reference":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
-    #
-    # outliers = admm_reference(target=target_base, XTX=get_XTX(), sparsity=0.99, iterative_prune=15 if is_iterative else 0)
-    # loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
-    # results.append({
-    #     'name': f'{exp_name}',
-    #     'loss': loss,
-    # })
+    exp_name = f'{"admm_reference":<17} | {target_name:<25} | ' + is_iterative
 
-    exp_name = f'{"admm_custom":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
+    outliers = admm_reference(target=target_base, XTX=get_XTX(), sparsity=0.99, iterative_prune=15 if is_iterative else 0)
+    loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
+    results.append({
+        'name': f'{exp_name}',
+        'loss': loss,
+    })
+
+    exp_name = f'{"admm_custom":<17} | {target_name:<25} | ' + is_iterative
 
     outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, is_iterative=is_iterative)
     loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
@@ -330,28 +337,28 @@ def test(target_name: str = 'LLAMA2_TARGET_BASE.pt', is_iterative: bool = False)
     #     'loss': loss,
     # })
 
-    # exp_name = f'{"admm_custom_sgpt":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
-    #
-    # outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, mask_rule=sparsegpt_mask, is_iterative=is_iterative)
-    # loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
-    # results.append({
-    #     'name': f'{exp_name}',
-    #     'loss': loss,
-    # })
+    exp_name = f'{"admm_custom_sgpt":<17} | {target_name:<25} | ' + is_iterative
 
-    exp_name = f'{"admm_custom_opt":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
-
-    begin = time.perf_counter()
-    opt = OutlierOptimizer(XTX=get_XTX(), is_iterative=is_iterative, sparsity=0.99)
-    print(time.perf_counter() - begin)
-    begin = time.perf_counter()
-    outliers = opt.get_outliers(target=target_base)
-    print(time.perf_counter() - begin)
+    outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, mask_rule=sparsegpt_mask, is_iterative=is_iterative)
     loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
     results.append({
         'name': f'{exp_name}',
         'loss': loss,
     })
+
+    # exp_name = f'{"admm_custom_opt":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
+    #
+    # begin = time.perf_counter()
+    # opt = OutlierOptimizer(XTX=get_XTX(), is_iterative=is_iterative, sparsity=0.99)
+    # print(time.perf_counter() - begin)
+    # begin = time.perf_counter()
+    # outliers = opt.get_outliers(target=target_base)
+    # print(time.perf_counter() - begin)
+    # loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
+    # results.append({
+    #     'name': f'{exp_name}',
+    #     'loss': loss,
+    # })
 
     # exp_name = f'{"admm_custom_galq":<17} | {target_name:<25} | ' + ('iter' if is_iterative else '')
     #
@@ -368,8 +375,8 @@ def test(target_name: str = 'LLAMA2_TARGET_BASE.pt', is_iterative: bool = False)
 def main():
     targets = [
         'LLAMA2_TARGET_BASE.pt',
-        # 'LLAMA2_DIFF_BASE.pt',
-        # 'LLAMA2_DIFF_TUNED.pt',
+        'LLAMA2_DIFF_BASE.pt',
+        'LLAMA2_DIFF_TUNED.pt',
     ]
 
     # for target in targets:
@@ -377,7 +384,7 @@ def main():
     #     plot_rho(target)
 
     results = []
-    for is_iterative, target in list(itertools.product((False,), targets)):
+    for target, is_iterative in list(itertools.product(targets, ('', 'base_iter', 'linear_iter', 'cube_iter'))):
         results.extend(test(target_name=target, is_iterative=is_iterative))
 
     for result in results:
