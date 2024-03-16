@@ -68,6 +68,10 @@ class MaskCompressor:
 
         output = []
         for delta in idx_diff:
+            if delta > (256 ** 2 - 1):
+                assert (delta // (256 ** 2)) <= 255
+                output.extend((0, 0, delta // (256 ** 2), (delta % (256 ** 2)) // 256, delta % 256))
+                continue
             if delta > 255:
                 assert (delta // 256) <= 255
                 output.extend((0, delta // 256, delta % 256))
@@ -93,6 +97,10 @@ class MaskCompressor:
             if idx_diff_compressed[idx].item() != np.iinfo(np.int8).min:
                 output.append(idx_diff_compressed[idx].item() - np.iinfo(np.int8).min)
                 idx += 1
+                continue
+            if idx_diff_compressed[idx + 1].item() == np.iinfo(np.int8).min:
+                output.append(idx_diff_compressed[idx + 2].item() * 256 * 256 + idx_diff_compressed[idx + 3].item() * 256 + idx_diff_compressed[idx + 4].item() - np.iinfo(np.int8).min * (1 + 256 + 256 * 256))
+                idx += 5
                 continue
             output.append(idx_diff_compressed[idx + 1].item() * 256 + idx_diff_compressed[idx + 2].item() - np.iinfo(np.int8).min * 257)
             idx += 3

@@ -9,7 +9,7 @@ from src.aq import MaskCompressor, ValuesCompressor, QuantizedOutliers
 class MyTestCase(unittest.TestCase):
 
     def test_compress_diff(self):
-        idx_diff = torch.from_numpy(np.array([1, 2, 255, 256, 1024, 2390, 23901]))
+        idx_diff = torch.from_numpy(np.array([1, 2, 255, 256, 1024, 2390, 23901, 256 ** 2 + 12345, 2]))
         idx_diff_compressed = MaskCompressor.compress_diff(idx_diff)
         idx_diff_decompressed = MaskCompressor.decompress_diff(idx_diff_compressed)
         print(idx_diff_decompressed)

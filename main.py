@@ -731,14 +731,7 @@ if __name__ == "__main__":
         assert has_wandb, "`wandb` not installed, try pip install `wandb`"
         args.exp_name = (
             os.environ.get("WANDB_NAME", "AQ")
-            + f"_outliers_percentile_{args.outliers_percentile}"
-            + f"_outliers_update_period_{args.outliers_update_period}"
-            + f"_n_outliers_admm_iterations_{args.n_outliers_admm_iterations}"
-            + f"_num_codebooks_{args.num_codebooks}"
-            + f"_nbits_per_codebook_{args.nbits_per_codebook}"
-            + f"_{len(args.devices)}gpus"
         )
-        args.group_size = args.in_group_size * args.out_group_size
 
         wandb.init(
             name=args.exp_name,
@@ -755,7 +748,6 @@ if __name__ == "__main__":
     datasets = ["wikitext2", "ptb", "c4"]
     if args.new_eval:
         datasets = ["wikitext2", "ptb-new", "c4-new"]
-    datasets = ["wikitext2"]
     for dataset in datasets:
         testloader = get_loaders(
             dataset,
@@ -783,18 +775,27 @@ if __name__ == "__main__":
     print(n_params)
 
     outliers_param_bits = 0
+    n_outliers = 0
     for name, param in model.named_parameters():
         if 'outliers' not in name:
             continue
+
+        if 'outliers_quant.outliers_values.0' in name:
+            assert len(param) == 1
+            n_outliers += param[0].item()
+
         print(name)
         outliers_param_bits += param.nelement() * param.element_size() * 8
 
-    print(f'outliers_param_bits={outliers_param_bits}')
+    results = {
+        'n_bits_per_param': (n_non_outlier_bits + outliers_param_bits) / n_params,
+        'non_outlier_bits': n_non_outlier_bits,
+        'outliers_bits': outliers_param_bits,
+        'n_outliers': n_outliers,
+        'outliers_percentile_eval': (n_outliers * 100 / n_params),
+    }
 
-    print(f'{n_non_outlier_bits=}')
+    for name, value in results.items():
+        print(name, value)
 
-    print(f'n_bits_per_param={(n_non_outlier_bits + outliers_param_bits) / n_params}')
-
-    print(f"eval: {torch.cuda.max_memory_allocated()=:,}")
-    if args.wandb:
-        wandb.log({"max_cuda_mem_eval": round(torch.cuda.max_memory_allocated() / 1e9, 2)})
+    wandb.log(results)
