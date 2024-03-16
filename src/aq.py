@@ -171,9 +171,9 @@ class QuantizedOutliers(nn.Module):
         # self.outliers_matrix = nn.ParameterList([
         #     nn.Parameter(param, requires_grad=False) for param in MaskCompressor.compress_mask(outliers != 0.)
         # ])
-        self.outliers_inner = nn.Parameter(outliers)
+        self.outliers_inner = nn.Parameter(outliers, requires_grad=False)
         self.outliers_matrix = nn.Parameter(
-            (outliers != 0.0)
+            (outliers != 0.0), requires_grad=False
         )
 
     def forward(self) -> torch.Tensor:
