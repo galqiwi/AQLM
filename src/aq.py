@@ -110,7 +110,7 @@ class MaskCompressor:
 
 class ValuesCompressor:
     @staticmethod
-    def compress_values(values: torch.Tensor, block_size: int = 64):
+    def compress_values(values: torch.Tensor, block_size: int = 2):
         assert block_size % 2 == 0
         length, = values.shape
 
