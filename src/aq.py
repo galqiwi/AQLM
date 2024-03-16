@@ -177,7 +177,7 @@ class QuantizedOutliers(nn.Module):
         )
 
     def forward(self) -> torch.Tensor:
-        indices = MaskCompressor.decompress_mask(*self.outliers_matrix).to_sparse_coo().indices()
+        indices = self.outliers_matrix.to_sparse_coo().indices()
         return torch.sparse_coo_tensor(
             indices=indices,
             values=ValuesCompressor.decompress_values(*self.outliers_values),
