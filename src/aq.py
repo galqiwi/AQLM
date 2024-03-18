@@ -147,7 +147,7 @@ class ValuesCompressor:
         return torch.LongTensor([length]), values, min_values, max_values
 
     @staticmethod
-    def decompress_values(length: torch.LongTensor, values: torch.Tensor, min_values: torch.Tensor, max_values: torch.Tensor, block_size: int = 64):
+    def decompress_values(length: torch.LongTensor, values: torch.Tensor, min_values: torch.Tensor, max_values: torch.Tensor, block_size: int = 2):
         length = length.item()
         values = values.to(torch.int64) - np.iinfo(np.int8).min
         values = torch.cat((
