@@ -6,6 +6,7 @@ import torch.nn as nn
 from tqdm import trange
 
 from transformers import AutoConfig, AutoModelForCausalLM
+import transformers.modeling_utils
 
 MODEL_ERROR_MSG = "Unsupported model type {} - only 'llama', 'Yi', 'opt' and 'falcon' are supported"
 FALCON_TYPES = ("falcon", "refinedweb", "refinedwebmodel")
@@ -19,10 +20,11 @@ def suspend_nn_inits():
 
     saved_inits = torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_  # saving
     torch.nn.init.kaiming_uniform_ = torch.nn.init.uniform_ = torch.nn.init.normal_ = skip  # replacing
-    try:
-        yield
-    finally:
-        torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_ = saved_inits  # restoring
+    with transformers.modeling_utils.no_init_weights():
+        try:
+            yield
+        finally:
+            torch.nn.init.kaiming_uniform_, torch.nn.init.uniform_, torch.nn.init.normal_ = saved_inits  # restoring
 
 
 def get_model(model_path, load_quantized=None, dtype="auto", model_seqlen=2048):

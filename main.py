@@ -23,6 +23,7 @@ from src.modelutils import (
     get_sequential_groups,
 )
 from src.utils import using_tf32
+import src.aq
 from transformers import PreTrainedModel
 
 try:
@@ -707,6 +708,12 @@ if __name__ == "__main__":
         default=10,
         help="Print Adam progress after each print_frequency updates",
     )
+    parser.add_argument(
+        "--outliers_compression_block_size",
+        type=int,
+        default=64,
+        help="outliers_compression_block_size",
+    )
     parser.add_argument("--wandb", action="store_true", help="Whether to use wandb or store locally.")
     parser.add_argument(
         "--no_quant",
@@ -727,6 +734,8 @@ if __name__ == "__main__":
         args.devices = [torch.device(device_str) for device_str in args.devices]
     assert all(isinstance(device, torch.device) for device in args.devices)
 
+    src.aq.outliers_compression_block_size = args.outliers_compression_block_size
+
     if args.wandb:
         assert has_wandb, "`wandb` not installed, try pip install `wandb`"
         args.exp_name = (
@@ -745,9 +754,11 @@ if __name__ == "__main__":
 
     print("\n============ Evaluating perplexity... ============")
     torch.cuda.reset_peak_memory_stats()
-    datasets = ["wikitext2", "ptb", "c4"]
-    if args.new_eval:
-        datasets = ["wikitext2", "ptb-new", "c4-new"]
+    # datasets = ["wikitext2", "ptb", "c4"]
+    # if args.new_eval:
+    #     datasets = ["wikitext2", "ptb-new", "c4-new"]
+    datasets = ["wikitext2"]
+    # datasets = []
     for dataset in datasets:
         testloader = get_loaders(
             dataset,
@@ -763,6 +774,7 @@ if __name__ == "__main__":
 
     n_params = 0
     n_non_outlier_bits = 0
+    n_outliers = 0
 
     for layer in get_layers(model):
         for _, submodule in layer.named_modules():
@@ -771,18 +783,18 @@ if __name__ == "__main__":
             n_new_params = submodule.in_features * submodule.out_features
             n_non_outlier_bits += n_new_params * submodule.estimate_nbits_per_parameter()
             n_params += n_new_params
+            n_outliers += submodule.outliers_quant.n_outliers
 
     print(n_params)
 
     outliers_param_bits = 0
-    n_outliers = 0
     for name, param in model.named_parameters():
         if 'outliers' not in name:
             continue
 
-        if 'outliers_quant.outliers_values.0' in name:
-            assert len(param) == 1
-            n_outliers += param[0].item()
+        # if 'outliers_quant.outliers_values.0' in name:
+        #     assert len(param) == 1
+        #     n_outliers += param[0].item()
 
         print(name)
         outliers_param_bits += param.nelement() * param.element_size() * 8
@@ -798,4 +810,5 @@ if __name__ == "__main__":
     for name, value in results.items():
         print(name, value)
 
-    wandb.log(results)
+    if args.wandb:
+        wandb.log(results)

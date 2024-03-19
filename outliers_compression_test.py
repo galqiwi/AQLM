@@ -22,28 +22,30 @@ class MyTestCase(unittest.TestCase):
         mask_decompressed = MaskCompressor.decompress_mask(*mask_compressed)
         torch.testing.assert_close(mask, mask_decompressed)
 
-    def test_compress_values(self):
-        values = torch.Tensor([0, 15, 5, 3, 0, 15, 15, 0])
+    def test_compress_all_values(self):
+        values = torch.tensor([0, 15, 5, 3, 0, 15, 15, 0], dtype=torch.float64)
 
         for block_size in (4, 8, 16, 32, 64, 128):
-            length, values_compressed, min_values, max_values = ValuesCompressor.compress_values(values, block_size=block_size)
-            values_decompressed = ValuesCompressor.decompress_values(length, values_compressed, min_values, max_values, block_size=block_size)
-            torch.testing.assert_close(values, values_decompressed)
+            length, values_compressed, min_values, max_values = ValuesCompressor.compress_all_values(values, block_size=block_size)
+            decompressed_values = ValuesCompressor.decompress_all_values(length, values_compressed, min_values, max_values, block_size=block_size)
+            torch.testing.assert_close(values, decompressed_values)
 
-    def test_compress_outliers(self):
-        outliers = torch.tensor([0, 4, 2, 17], dtype=torch.float64).reshape(2, 2)
-        quantized_outliers = QuantizedOutliers(outliers=outliers)
-        torch.testing.assert_close(outliers, quantized_outliers())
+    def test_compress_values(self):
+        values = torch.tensor(range(1, 17), dtype=torch.float64).repeat(200).to(torch.float64)
+        block_size = len(values)
 
-    def test_compress_outliers_2(self):
-        outliers = torch.tensor([0, 4, 5, 3, 2, 17], dtype=torch.float64).reshape(3, 2)
-        quantized_outliers = QuantizedOutliers(outliers=outliers)
-        torch.testing.assert_close(outliers, quantized_outliers())
+        compressed_values = ValuesCompressor.compress_values(values, block_size=block_size)
+        decompressed_values = ValuesCompressor.decompress_values(*compressed_values, block_size=block_size)
+        torch.testing.assert_close(values, decompressed_values)
 
-    def test_compress_outliers_3(self):
-        outliers = torch.tensor([1, 1, 0, 1, 1, 0], dtype=torch.float64).reshape(2, 3)
-        quantized_outliers = QuantizedOutliers(outliers=outliers)
-        torch.testing.assert_close(outliers, quantized_outliers())
+    def test_compress_outliers_large(self):
+        values = torch.tensor(range(1, 17), dtype=torch.float64).repeat(200).to(torch.float64)
+        block_size = len(values)
+
+        values = values.reshape(2, len(values) // 2)
+
+        quantized_outliers = QuantizedOutliers(outliers=values, block_size=block_size)
+        torch.testing.assert_close(values, quantized_outliers())
 
 
 if __name__ == '__main__':
