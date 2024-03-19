@@ -602,6 +602,7 @@ class QuantizedWeight(nn.Module):
                 )
                 self.outliers_quant_data = self.outliers_quant()
                 self.outliers = None
+                print(self)
 
             outliers = self.outliers_quant_data[selection] * (
                     self.outliers_quant_data[selection].detach() != 0).double()
