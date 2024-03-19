@@ -23,6 +23,7 @@ from src.modelutils import (
     get_sequential_groups,
 )
 from src.utils import using_tf32
+import src.aq
 from transformers import PreTrainedModel
 
 try:
@@ -707,6 +708,12 @@ if __name__ == "__main__":
         default=10,
         help="Print Adam progress after each print_frequency updates",
     )
+    parser.add_argument(
+        "--outliers_compression_block_size",
+        type=int,
+        default=64,
+        help="outliers_compression_block_size",
+    )
     parser.add_argument("--wandb", action="store_true", help="Whether to use wandb or store locally.")
     parser.add_argument(
         "--no_quant",
@@ -726,6 +733,8 @@ if __name__ == "__main__":
     else:
         args.devices = [torch.device(device_str) for device_str in args.devices]
     assert all(isinstance(device, torch.device) for device in args.devices)
+
+    src.aq.outliers_compression_block_size = args.outliers_compression_block_size
 
     if args.wandb:
         assert has_wandb, "`wandb` not installed, try pip install `wandb`"

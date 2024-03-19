@@ -15,6 +15,9 @@ import numpy as np
 import torch.nn as nn
 
 
+outliers_compression_block_size = 64
+
+
 class MaskCompressor:
     @classmethod
     def compress_mask(cls, mask: torch.Tensor):
@@ -593,7 +596,10 @@ class QuantizedWeight(nn.Module):
 
             if not hasattr(self, 'outliers_quant'):
                 print('QuantizedOutliers fix')
-                self.outliers_quant = QuantizedOutliers(outliers=self.outliers.clone().detach())
+                self.outliers_quant = QuantizedOutliers(
+                    outliers=self.outliers.clone().detach(),
+                    block_size=outliers_compression_block_size,
+                )
                 self.outliers_quant_data = self.outliers_quant()
                 self.outliers = None
 
