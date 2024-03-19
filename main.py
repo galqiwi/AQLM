@@ -733,7 +733,7 @@ if __name__ == "__main__":
     else:
         args.devices = [torch.device(device_str) for device_str in args.devices]
 
-    assert len(args.devices) == 0
+    assert len(args.devices) == 1
     assert all(isinstance(device, torch.device) for device in args.devices)
 
     src.aq.outliers_compression_block_size = args.outliers_compression_block_size
