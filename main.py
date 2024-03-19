@@ -741,7 +741,7 @@ if __name__ == "__main__":
     if args.wandb:
         assert has_wandb, "`wandb` not installed, try pip install `wandb`"
         args.exp_name = (
-            # os.environ.get("WANDB_NAME", "AQ") +
+            os.environ.get("WANDB_NAME", "AQ") +
             f'bs_{args.outliers_compression_block_size}'
         )
 
