@@ -780,9 +780,9 @@ if __name__ == "__main__":
         if 'outliers' not in name:
             continue
 
-        if 'outliers_quant.outliers_values.0' in name:
-            assert len(param) == 1
-            n_outliers += param[0].item()
+        # if 'outliers_quant.outliers_values.0' in name:
+        #     assert len(param) == 1
+        #     n_outliers += param[0].item()
 
         print(name)
         outliers_param_bits += param.nelement() * param.element_size() * 8

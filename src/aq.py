@@ -10,7 +10,6 @@ from tqdm.auto import trange
 from src.kmeans import find_nearest_cluster, fit_faiss_kmeans, fit_kmeans, fit_kmeans_1d
 from src.utils import ellipsis, maybe_script
 
-
 import torch
 import numpy as np
 import torch.nn as nn
@@ -22,7 +21,6 @@ class MaskCompressor:
         device = mask.device
         mask = mask.cpu().detach()
         assert mask.dtype == torch.bool
-        h, w = mask.shape
 
         idx = cls.get_idx(mask)
         assert len(idx) > 2
@@ -31,23 +29,20 @@ class MaskCompressor:
         idx_diff_compressed = cls.compress_diff(idx_diff)
         assert idx_diff_compressed.dtype == torch.int8
 
-        return torch.LongTensor([idx[0], h, w]), idx_diff_compressed.to(device)
+        return tuple(mask.shape), idx[0].item(), idx_diff_compressed.to(device)
 
     @classmethod
-    def decompress_mask(cls, first_idx: torch.Tensor, idx_diff_compressed: torch.Tensor):
+    def decompress_mask(cls, shape: Tuple[int, int], first_idx: int, idx_diff_compressed: torch.Tensor):
         device = idx_diff_compressed.device
         idx_diff_compressed = idx_diff_compressed.cpu().detach()
-        first_idx = first_idx.cpu().detach()
-        assert first_idx.dtype == torch.int64
         assert idx_diff_compressed.dtype == torch.int8
 
         idx_diff = cls.decompress_diff(idx_diff_compressed)
-        idx0, h, w = first_idx
 
-        idx = torch.cumsum(torch.cat((torch.LongTensor([idx0.item()]), idx_diff), dim=0), dim=0)
+        idx = torch.cumsum(torch.cat((torch.tensor([first_idx], dtype=torch.int64), idx_diff), dim=0), dim=0)
         assert idx.dtype == torch.int64
 
-        output = cls.get_mask(idx, h.item(), w.item())
+        output = cls.get_mask(idx, shape)
         assert output.dtype == torch.bool
 
         return output.to(device)
@@ -57,10 +52,10 @@ class MaskCompressor:
         return torch.nonzero(mask.reshape(-1))[:, 0]
 
     @staticmethod
-    def get_mask(idx: torch.Tensor, h: int, w: int) -> torch.Tensor:
-        output = torch.zeros((h * w,)).to(torch.bool)
+    def get_mask(idx: torch.Tensor, shape: Tuple[int, int]) -> torch.Tensor:
+        output = torch.zeros((shape[0] * shape[1],)).to(torch.bool)
         output[idx] = True
-        return output.reshape(h, w)
+        return output.reshape(*shape)
 
     @staticmethod
     def compress_diff(idx_diff: torch.Tensor):
@@ -79,7 +74,7 @@ class MaskCompressor:
             assert delta > 0
             output.append(delta)
 
-        output = torch.LongTensor(output)
+        output = torch.tensor(output, dtype=torch.int64)
 
         assert (output > 255).sum() == 0
         assert (output < 0).sum() == 0
@@ -99,88 +94,260 @@ class MaskCompressor:
                 idx += 1
                 continue
             if idx_diff_compressed[idx + 1].item() == np.iinfo(np.int8).min:
-                output.append(idx_diff_compressed[idx + 2].item() * 256 * 256 + idx_diff_compressed[idx + 3].item() * 256 + idx_diff_compressed[idx + 4].item() - np.iinfo(np.int8).min * (1 + 256 + 256 * 256))
+                output.append(
+                    idx_diff_compressed[idx + 2].item() * 256 * 256 + idx_diff_compressed[idx + 3].item() * 256 +
+                    idx_diff_compressed[idx + 4].item() - np.iinfo(np.int8).min * (1 + 256 + 256 * 256))
                 idx += 5
                 continue
-            output.append(idx_diff_compressed[idx + 1].item() * 256 + idx_diff_compressed[idx + 2].item() - np.iinfo(np.int8).min * 257)
+            output.append(idx_diff_compressed[idx + 1].item() * 256 + idx_diff_compressed[idx + 2].item() - np.iinfo(
+                np.int8).min * 257)
             idx += 3
 
-        return torch.LongTensor(output)
+        return torch.tensor(output, dtype=torch.int64)
 
 
 class ValuesCompressor:
     @staticmethod
-    def compress_values(values: torch.Tensor, block_size: int = 2):
-        assert block_size % 2 == 0
+    def _append_to_block(values: torch.Tensor, block_size: int) -> torch.Tensor:
         length, = values.shape
 
-        if length % block_size != 0:
-            append_value = torch.mean(values[(length // block_size) * block_size:])
-            values = torch.cat([
-                values,
-                torch.full(
-                    size=(block_size - length % block_size,),
-                    fill_value=append_value,
-                    device=values.device,
-                ),
-            ])
+        if length % block_size == 0:
+            return values
 
-        assert len(values) % block_size == 0
+        append_value = torch.mean(values[(length // block_size) * block_size:])
+        output = torch.cat([
+            values,
+            torch.full(
+                size=(block_size - length % block_size,),
+                fill_value=append_value,
+                device=values.device,
+            ),
+        ])
+
+        assert len(output) % block_size == 0
+
+        return output
+
+    @staticmethod
+    def _convert_4_bits_to_int8(values: torch.Tensor) -> torch.Tensor:
+        length, = values.shape
+        assert length % 2 == 0
+
+        assert (~(values < 16)).sum().item() == 0
+        assert (~(values >= 0)).sum().item() == 0
+
+        values = values.reshape(-1, 2)
+
+        values = 16 * values[:, 0] + values[:, 1]
+
+        values = (values + np.iinfo(np.int8).min).to(torch.int8)
+
+        return values
+
+    @staticmethod
+    def _convert_int8_to_4_bits(values: torch.Tensor) -> torch.Tensor:
+        values = values.to(torch.int32) - np.iinfo(np.int8).min
+        values = torch.cat((
+            (values // 16)[:, None],
+            (values % 16)[:, None],
+        ), dim=1)
+        return values.reshape(-1)
+
+    @classmethod
+    def _compress_rtn(cls, values: torch.Tensor, block_size: int):
+        length, = values.shape
+
+        assert length % block_size == 0
         values = values.reshape(-1, block_size)
 
         min_values = values.min(dim=1).values
         max_values = values.max(dim=1).values
 
-        max_values = max_values + (max_values == min_values).float()
+        values = (
+                (values - min_values[:, None]) /
+                (max_values - min_values)[:, None]
+        ).reshape(-1)
 
-        values = (values - min_values[:, None]) / (max_values - min_values)[:, None]
+        values = torch.round(values * 15).to(torch.int32)
+        values = torch.minimum(values, torch.tensor(15, dtype=torch.int32))
+        values = torch.maximum(values, torch.tensor(0, dtype=torch.int32))
 
-        values = values.reshape(-1)
+        values = cls._convert_4_bits_to_int8(values)
 
-        values = torch.round(values * 15).to(torch.int64)
-        assert len(values) % 2 == 0
+        return values, min_values, max_values
 
-        values = values.reshape(-1, 2)
-        values = 16 * values[:, 0] + values[:, 1] + np.iinfo(np.int8).min
-        values = values.to(torch.int8)
+    @classmethod
+    def _decompress_rtn(cls, values: torch.Tensor, min_values: torch.Tensor, max_values: torch.Tensor,
+                        block_size: int) -> torch.Tensor:
+        values = cls._convert_int8_to_4_bits(values)
+        assert values.dtype == torch.int32
 
-        return torch.LongTensor([length]), values, min_values, max_values
-
-    @staticmethod
-    def decompress_values(length: torch.LongTensor, values: torch.Tensor, min_values: torch.Tensor, max_values: torch.Tensor, block_size: int = 2):
-        length = length.item()
-        values = values.to(torch.int64) - np.iinfo(np.int8).min
-        values = torch.cat((
-            (values // 16)[:, None],
-            (values % 16)[:, None],
-        ), dim=1)
         values = values.reshape(-1, block_size)
-        values = min_values[:, None] + (max_values - min_values)[:, None] * (values.float() / 15)
+        values = min_values[:, None] + (max_values - min_values)[:, None] * (values.to(torch.float32) / 15)
         values = values.reshape(-1)
-        return values[:length]
+        return values
+
+    @classmethod
+    def _extract_uncompressed_values(cla, values: torch.Tensor):
+        length, = values.shape
+
+        assert length > 100
+        uncompressed_indices = torch.topk(values.abs(), k=length // 100).indices
+        uncompressed_values = values[uncompressed_indices]
+
+        values_to_compress_mask = torch.full(size=(length,), fill_value=True, dtype=torch.bool)
+        values_to_compress_mask[uncompressed_indices] = False
+
+        values_to_compress = values[values_to_compress_mask]
+
+        return uncompressed_indices, uncompressed_values, values_to_compress
+
+    @classmethod
+    def _merge_uncompressed_values(
+            cls,
+            uncompressed_indices: torch.Tensor,
+            uncompressed_values: torch.Tensor,
+            decompressed_values: torch.Tensor,
+    ):
+        length = len(uncompressed_values) + len(decompressed_values)
+
+        output = torch.zeros(size=(length,), dtype=uncompressed_values.dtype)
+        output[uncompressed_indices] = uncompressed_values
+
+        compressed_values_mask = torch.full(size=(length,), fill_value=True, dtype=torch.bool)
+        compressed_values_mask[uncompressed_indices] = False
+        output[compressed_values_mask] = decompressed_values
+
+        return output
+
+    @classmethod
+    @torch.no_grad()
+    def compress_all_values(cls, values: torch.Tensor, block_size):
+        assert block_size % 2 == 0
+
+        length, = values.shape
+
+        values = cls._append_to_block(values, block_size)
+
+        values, min_values, max_values = cls._compress_rtn(values, block_size)
+
+        return length, values, min_values, max_values
+
+    @classmethod
+    @torch.no_grad()
+    def decompress_all_values(
+            cls,
+            length: int,
+            values: torch.Tensor,
+            min_values: torch.Tensor,
+            max_values: torch.Tensor,
+            block_size: int,
+    ):
+        values = cls._decompress_rtn(values, min_values, max_values, block_size)
+        values = values[:length]
+        return values
+
+    @classmethod
+    @torch.no_grad()
+    def compress_values(cls, values: torch.Tensor, block_size):
+        assert block_size % 2 == 0
+        length, = values.shape
+
+        uncompressed_indices, uncompressed_values, values_to_compress = cls._extract_uncompressed_values(values)
+        values = None
+
+        compressed_length, compressed_values, min_values, max_values = cls.compress_all_values(values_to_compress,
+                                                                                               block_size)
+
+        return (
+            (length, compressed_length),
+            compressed_values,
+            min_values,
+            max_values,
+            uncompressed_indices,
+            uncompressed_values,
+        )
+
+    @classmethod
+    @torch.no_grad()
+    def decompress_values(
+            cls,
+            lengths: Tuple[int, int],
+            compressed_values: torch.Tensor,
+            min_values: torch.Tensor,
+            max_values: torch.Tensor,
+            uncompressed_indices: torch.LongTensor,
+            uncompressed_values: torch.Tensor,
+            block_size: int,
+    ):
+        length, compressed_length = lengths
+
+        decompressed_values = cls.decompress_all_values(
+            length=compressed_length,
+            values=compressed_values,
+            min_values=min_values,
+            max_values=max_values,
+            block_size=block_size,
+        )
+
+        assert length == compressed_length + len(uncompressed_values)
+
+        output = cls._merge_uncompressed_values(
+            uncompressed_indices,
+            uncompressed_values,
+            decompressed_values,
+        )
+
+        assert len(output) == length
+        return output
 
 
 class QuantizedOutliers(nn.Module):
-    def __init__(self, outliers: torch.Tensor):
+    def __init__(self, outliers: torch.Tensor, block_size: int = 64):
         super().__init__()
+        self.block_size = block_size
         self.outliers_shape = outliers.shape
         outliers_sparse = outliers.to_sparse_coo()
-        self.outliers_values = nn.ParameterList([
-            nn.Parameter(param, requires_grad=False) for param in ValuesCompressor.compress_values(outliers_sparse.values())
-        ])
-        # self.outliers_matrix = nn.ParameterList([
-        #     nn.Parameter(param, requires_grad=False) for param in MaskCompressor.compress_mask(outliers != 0.)
-        # ])
-        self.outliers_inner = nn.Parameter(outliers, requires_grad=False)
-        self.outliers_matrix = nn.Parameter(
-            (outliers != 0.0), requires_grad=False
-        )
+
+        (
+            (length, compressed_length),
+            compressed_values,
+            min_values,
+            max_values,
+            uncompressed_indices,
+            uncompressed_values
+        ) = ValuesCompressor.compress_values(outliers_sparse.values(), block_size=self.block_size)
+
+        self.n_outliers = length
+        self.values_lengths = (length, compressed_length)
+        self.compressed_values = nn.Parameter(compressed_values, requires_grad=False)
+        self.min_values = nn.Parameter(min_values, requires_grad=False)
+        self.max_values = nn.Parameter(max_values, requires_grad=False)
+        self.uncompressed_indices = nn.Parameter(uncompressed_indices, requires_grad=False)
+        self.uncompressed_values = nn.Parameter(uncompressed_values, requires_grad=False)
+
+        shape, first_idx, idx_diff_compressed = MaskCompressor.compress_mask((outliers != 0.))
+
+        self.mask_shape = shape
+        self.mask_first_idx = first_idx
+        self.mask_idx_diff_compressed = nn.Parameter(idx_diff_compressed, requires_grad=False)
 
     def forward(self) -> torch.Tensor:
-        indices = self.outliers_matrix.to_sparse_coo().indices()
         return torch.sparse_coo_tensor(
-            indices=indices,
-            values=ValuesCompressor.decompress_values(*self.outliers_values),
+            indices=MaskCompressor.decompress_mask(
+                shape=self.mask_shape,
+                first_idx=self.mask_first_idx,
+                idx_diff_compressed=self.mask_idx_diff_compressed,
+            ).to_sparse_coo().indices(),
+            values=ValuesCompressor.decompress_values(
+                lengths=self.values_lengths,
+                compressed_values=self.compressed_values,
+                min_values=self.min_values,
+                max_values=self.max_values,
+                uncompressed_indices=self.uncompressed_indices,
+                uncompressed_values=self.uncompressed_values,
+                block_size=self.block_size,
+            ),
             size=self.outliers_shape,
         ).to_dense()
 
@@ -274,19 +441,19 @@ class QuantizedWeight(nn.Module):
     EPS = 1e-9
 
     def __init__(
-        self,
-        *,
-        XTX: torch.Tensor,
-        reference_weight: torch.Tensor,
-        in_group_size: int,
-        out_group_size: int,
-        num_codebooks: int,
-        nbits_per_codebook: int = 8,
-        codebook_value_nbits: int = 16,
-        codebook_value_num_groups: int = 1,
-        scale_nbits: int = 0,
-        straight_through_gradient: Optional[bool] = None,
-        **init_kwargs,
+            self,
+            *,
+            XTX: torch.Tensor,
+            reference_weight: torch.Tensor,
+            in_group_size: int,
+            out_group_size: int,
+            num_codebooks: int,
+            nbits_per_codebook: int = 8,
+            codebook_value_nbits: int = 16,
+            codebook_value_num_groups: int = 1,
+            scale_nbits: int = 0,
+            straight_through_gradient: Optional[bool] = None,
+            **init_kwargs,
     ):
         super().__init__()
         self.out_features, self.in_features = reference_weight.shape
@@ -296,7 +463,7 @@ class QuantizedWeight(nn.Module):
         self.out_group_size, self.in_group_size = out_group_size, in_group_size
         self.num_codebooks = num_codebooks
         self.nbits_per_codebook = nbits_per_codebook
-        self.codebook_size = codebook_size = 2**nbits_per_codebook
+        self.codebook_size = codebook_size = 2 ** nbits_per_codebook
         self.codebook_value_nbits = codebook_value_nbits
         self.codebook_value_num_groups = codebook_value_num_groups
         self.codebook_value_clusters = None
@@ -320,12 +487,12 @@ class QuantizedWeight(nn.Module):
                 scales = weight_groupwise.flatten(1, -1).norm(dim=-1).view(-1, 1, 1, 1) + self.EPS
             # shape [num_out_groups, num_in_groups, 1, 1] if scale_nbits > 0 else [num_out_groups, num_in_groups, 1, 1]
 
-            self.scales_are_lossless = scale_nbits == 0 or scale_nbits >= 16 or (2**scale_nbits >= scales.shape[1])
+            self.scales_are_lossless = scale_nbits == 0 or scale_nbits >= 16 or (2 ** scale_nbits >= scales.shape[1])
             if self.scales_are_lossless or self.straight_through_gradient:
                 # ^-- this checks if scales can be preserved losslessly
                 self.scales = nn.Parameter(scales, requires_grad=True)
             else:
-                scales_clusters, scales_indices, _ = fit_kmeans_1d(scales.flatten(1, -1), k=2**scale_nbits)
+                scales_clusters, scales_indices, _ = fit_kmeans_1d(scales.flatten(1, -1), k=2 ** scale_nbits)
                 self.scales_clusters = nn.Parameter(scales_clusters, requires_grad=True)
                 self.scales_indices = nn.Parameter(scales_indices, requires_grad=False)
 
@@ -344,7 +511,7 @@ class QuantizedWeight(nn.Module):
         self.codebooks = nn.Parameter(
             codebooks, requires_grad=True
         )  # [num_codebooks, codebook_size, out_group_size, in_group_size]
-        self.codes = nn.Parameter(codes, requires_grad=False)  #  [num_out_groups, num_in_groups, num_codebooks]
+        self.codes = nn.Parameter(codes, requires_grad=False)  # [num_out_groups, num_in_groups, num_codebooks]
 
         self.outliers = nn.Parameter(
             torch.zeros((self.out_features, self.in_features), dtype=torch.float32, device=reference_weight.device),
@@ -370,7 +537,7 @@ class QuantizedWeight(nn.Module):
                 )
                 self.codebook_value_clusters, _unused, reconstructed_codebooks_dimshuffle = fit_kmeans_1d(
                     codebooks_dimshuffle,
-                    k=2**self.codebook_value_nbits,
+                    k=2 ** self.codebook_value_nbits,
                     initial_clusters=self.codebook_value_clusters,
                 )
                 reconstructed_codebooks = (
@@ -396,7 +563,7 @@ class QuantizedWeight(nn.Module):
         elif self.straight_through_gradient:
             with torch.no_grad():
                 self.scales_clusters, _, dequantized_scales = fit_kmeans_1d(
-                    self.scales.flatten(1, -1), k=2**self.scale_nbits, initial_clusters=self.scales_clusters
+                    self.scales.flatten(1, -1), k=2 ** self.scale_nbits, initial_clusters=self.scales_clusters
                 )
                 dequantized_scales = dequantized_scales.reshape_as(self.scales)
             if torch.is_grad_enabled() and self.scales.requires_grad:
@@ -426,17 +593,18 @@ class QuantizedWeight(nn.Module):
                 self.outliers_quant_data = self.outliers_quant()
                 self.outliers = None
 
-            outliers = self.outliers_quant_data[selection] * (self.outliers_quant_data[selection].detach() != 0).double()
+            outliers = self.outliers_quant_data[selection] * (
+                    self.outliers_quant_data[selection].detach() != 0).double()
             output = weight + outliers.to(weight.dtype)
-        
-        return output 
+
+        return output
 
     @torch.no_grad()
     def update_outliers(
-        self,
-        reference_weight: torch.Tensor,
-        outliers_optimizer: any,
-        selection: Union[slice, ellipsis, torch.LongTensor] = ...,
+            self,
+            reference_weight: torch.Tensor,
+            outliers_optimizer: any,
+            selection: Union[slice, ellipsis, torch.LongTensor] = ...,
     ) -> torch.Tensor:
         """
         TODO(galqiwi): description
@@ -450,15 +618,14 @@ class QuantizedWeight(nn.Module):
 
         return self.outliers[selection]
 
-
     @torch.no_grad()
     def beam_search_update_codes_(
-        self,
-        XTX: torch.Tensor,
-        reference_weight: torch.Tensor,
-        *,
-        selection: Union[slice, ellipsis, torch.LongTensor] = ...,
-        **kwargs,
+            self,
+            XTX: torch.Tensor,
+            reference_weight: torch.Tensor,
+            *,
+            selection: Union[slice, ellipsis, torch.LongTensor] = ...,
+            **kwargs,
     ) -> torch:
         """
         Update self.codes in-place via beam search so as to minimize squared errors. Return the updated codes.
@@ -496,14 +663,14 @@ class QuantizedWeight(nn.Module):
         codebooks_store = self.num_codebooks * self.codebook_size * group_size * self.codebook_value_nbits
         if self.codebook_value_nbits < 16:
             codebooks_store += (
-                2**self.codebook_value_nbits * self.num_codebooks * self.codebook_value_num_groups * group_size * 16
+                    2 ** self.codebook_value_nbits * self.num_codebooks * self.codebook_value_num_groups * group_size * 16
             )
 
-        if self.scale_nbits >= 16 or 2**self.scale_nbits >= num_in_groups:  # group-wise scales in 16 bit
+        if self.scale_nbits >= 16 or 2 ** self.scale_nbits >= num_in_groups:  # group-wise scales in 16 bit
             scale_store = self.scale_nbits * num_out_groups * num_in_groups
         elif 0 < self.scale_nbits < 16:  # use scale quantization codebooks
             scale_store = self.scale_nbits * num_out_groups * num_in_groups
-            scale_store += num_out_groups * 2**self.scale_nbits * 16
+            scale_store += num_out_groups * 2 ** self.scale_nbits * 16
         elif self.scale_nbits == 0:  # no group-wise scales; use global 1d scales instead
             scale_store = num_out_groups * 16
         else:
@@ -517,16 +684,16 @@ class QuantizedWeight(nn.Module):
 
 @torch.inference_mode()
 def beam_search_optimal_codes(
-    *,
-    XTX: torch.Tensor,
-    reference_weight: torch.Tensor,
-    codebooks: torch.Tensor,
-    prev_codes: torch.IntTensor,
-    scales: Optional[torch.Tensor],
-    beam_size: int,
-    dim_rng: Optional[random.Random] = None,
-    sparsity_regularizer: float = 0,
-    verbose: bool,
+        *,
+        XTX: torch.Tensor,
+        reference_weight: torch.Tensor,
+        codebooks: torch.Tensor,
+        prev_codes: torch.IntTensor,
+        scales: Optional[torch.Tensor],
+        beam_size: int,
+        dim_rng: Optional[random.Random] = None,
+        sparsity_regularizer: float = 0,
+        verbose: bool,
 ):
     """
     :param XTX: pairwise products of input features matmul(X.transpose(), X), shape: [in_features, in_features]
@@ -650,7 +817,7 @@ def beam_search_optimal_codes(
 
 @maybe_script
 def _dequantize_weight(
-    codes: torch.Tensor, codebooks: torch.Tensor, scales: Optional[torch.Tensor] = None
+        codes: torch.Tensor, codebooks: torch.Tensor, scales: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
     Decode float weights from quantization codes. Differentiable.
@@ -680,17 +847,17 @@ def _dequantize_weight(
 
 @maybe_script
 def _beam_search_squared_errors(
-    XTX: torch.Tensor,
-    reference_weight: torch.Tensor,
-    codebooks: torch.Tensor,
-    scales: Optional[torch.Tensor],
-    beam_losses: torch.Tensor,
-    beam_codes: torch.Tensor,
-    beam_weights: torch.Tensor,
-    input_group_index: int,
-    codebook_index: int,
-    k_best: int,
-    sparsity_regularizer: float,
+        XTX: torch.Tensor,
+        reference_weight: torch.Tensor,
+        codebooks: torch.Tensor,
+        scales: Optional[torch.Tensor],
+        beam_losses: torch.Tensor,
+        beam_codes: torch.Tensor,
+        beam_weights: torch.Tensor,
+        input_group_index: int,
+        codebook_index: int,
+        k_best: int,
+        sparsity_regularizer: float,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Compute MSE or sum-of-squared-error losses for all possible ways to replace quantization codes for one input group
@@ -804,7 +971,7 @@ def _beam_search_squared_errors(
 
         # finally, combine them to get MSE
         candidate_squared_errors = (
-            beam_losses[beam_id, None, :] - 2 * dot_products + XnewBkC_norms_sq - XoldBkC_norms_sq
+                beam_losses[beam_id, None, :] - 2 * dot_products + XnewBkC_norms_sq - XoldBkC_norms_sq
         )  # shape: [codebook_size, num_out_groups]
 
         if sparsity_regularizer != 0:
@@ -822,15 +989,15 @@ def _beam_search_squared_errors(
 
 @maybe_script
 def _beam_search_select_best(
-    beam_codes: torch.Tensor,
-    beam_weights: torch.Tensor,
-    codebooks: torch.Tensor,
-    scales: Optional[torch.Tensor],
-    input_group_index: int,
-    codebook_index: int,
-    best_losses: torch.Tensor,
-    best_indices: torch.Tensor,
-    beam_size: int,
+        beam_codes: torch.Tensor,
+        beam_weights: torch.Tensor,
+        codebooks: torch.Tensor,
+        scales: Optional[torch.Tensor],
+        input_group_index: int,
+        codebook_index: int,
+        best_losses: torch.Tensor,
+        best_indices: torch.Tensor,
+        beam_size: int,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Select top-:beam_size: and reorder beam accordingly, return new beam
@@ -899,18 +1066,18 @@ def _channelwise_squared_error(XTX: torch.Tensor, weight: torch.Tensor, referenc
 
 @torch.no_grad()
 def init_aq_kmeans(
-    reference_weight: torch.Tensor,
-    *,
-    num_codebooks: int,
-    out_group_size: int,
-    in_group_size: int,
-    codebook_size: int,
-    verbose: bool = False,
-    use_faiss: bool = False,
-    max_points_per_centroid: Optional[int] = None,
-    max_iter: int = 1000,
-    devices: Optional[List[torch.device]] = None,
-    **kwargs,
+        reference_weight: torch.Tensor,
+        *,
+        num_codebooks: int,
+        out_group_size: int,
+        in_group_size: int,
+        codebook_size: int,
+        verbose: bool = False,
+        use_faiss: bool = False,
+        max_points_per_centroid: Optional[int] = None,
+        max_iter: int = 1000,
+        devices: Optional[List[torch.device]] = None,
+        **kwargs,
 ):
     """
     Create initial codes and codebooks using residual K-means clustering of weights
@@ -947,8 +1114,8 @@ def init_aq_kmeans(
             chosen_ids = None
             if max_points_per_centroid is not None:
                 chosen_ids = torch.randperm(weight_residue.shape[0], device=weight_residue.device)[
-                    : max_points_per_centroid * codebook_size
-                ]
+                             : max_points_per_centroid * codebook_size
+                             ]
             codebook_i, _, _ = fit_kmeans(
                 weight_residue if chosen_ids is None else weight_residue[chosen_ids, :],
                 k=codebook_size,
