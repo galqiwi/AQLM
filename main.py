@@ -745,9 +745,11 @@ if __name__ == "__main__":
 
     print("\n============ Evaluating perplexity... ============")
     torch.cuda.reset_peak_memory_stats()
-    datasets = ["wikitext2", "ptb", "c4"]
-    if args.new_eval:
-        datasets = ["wikitext2", "ptb-new", "c4-new"]
+    # datasets = ["wikitext2", "ptb", "c4"]
+    # if args.new_eval:
+    #     datasets = ["wikitext2", "ptb-new", "c4-new"]
+    datasets = ["wikitext2"]
+    # datasets = []
     for dataset in datasets:
         testloader = get_loaders(
             dataset,
@@ -763,6 +765,7 @@ if __name__ == "__main__":
 
     n_params = 0
     n_non_outlier_bits = 0
+    n_outliers = 0
 
     for layer in get_layers(model):
         for _, submodule in layer.named_modules():
@@ -771,11 +774,11 @@ if __name__ == "__main__":
             n_new_params = submodule.in_features * submodule.out_features
             n_non_outlier_bits += n_new_params * submodule.estimate_nbits_per_parameter()
             n_params += n_new_params
+            n_outliers += submodule.outliers.outliers_quant.n_outliers
 
     print(n_params)
 
     outliers_param_bits = 0
-    n_outliers = 0
     for name, param in model.named_parameters():
         if 'outliers' not in name:
             continue
@@ -798,4 +801,5 @@ if __name__ == "__main__":
     for name, value in results.items():
         print(name, value)
 
-    wandb.log(results)
+    if args.wandb:
+        wandb.log(results)
