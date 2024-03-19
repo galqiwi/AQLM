@@ -183,7 +183,7 @@ def get_c4_new(nsamples, seqlen, tokenizer, eval_mode=False):
         return valenc
 
 
-def get_loaders(name, nsamples=128 * 0 + 8, seed=0, seqlen=2048, eval_mode=False, model_path=None):
+def get_loaders(name, nsamples=128, seed=0, seqlen=2048, eval_mode=False, model_path=None):
     """
     Loads and prepares data for a Transformers model.
     Args:
