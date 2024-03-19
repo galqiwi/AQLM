@@ -216,7 +216,7 @@ class ValuesCompressor:
 
         compressed_values_mask = torch.full(size=(length,), fill_value=True, dtype=torch.bool)
         compressed_values_mask[uncompressed_indices] = False
-        output[compressed_values_mask] = decompressed_values
+        output[compressed_values_mask] = decompressed_values.to(uncompressed_values.dtype)
 
         return output
 
