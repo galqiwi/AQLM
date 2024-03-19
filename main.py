@@ -785,7 +785,7 @@ if __name__ == "__main__":
             n_new_params = submodule.in_features * submodule.out_features
             n_non_outlier_bits += n_new_params * submodule.estimate_nbits_per_parameter()
             n_params += n_new_params
-            # n_outliers += submodule.outliers_quant.n_outliers
+            n_outliers += submodule.outliers_quant.n_outliers
     print(model)
     print(n_params)
 
