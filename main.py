@@ -732,6 +732,8 @@ if __name__ == "__main__":
         args.devices = [torch.device(f"cuda:{i}") for i in range(torch.cuda.device_count())]
     else:
         args.devices = [torch.device(device_str) for device_str in args.devices]
+
+    assert len(args.devices) == 0
     assert all(isinstance(device, torch.device) for device in args.devices)
 
     src.aq.outliers_compression_block_size = args.outliers_compression_block_size
