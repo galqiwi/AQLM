@@ -332,13 +332,17 @@ class QuantizedOutliers(nn.Module):
         self.mask_first_idx = first_idx
         self.mask_idx_diff_compressed = nn.Parameter(idx_diff_compressed, requires_grad=False)
 
+        self.mask = (outliers != 0.)
+
     def forward(self) -> torch.Tensor:
+        # indices = MaskCompressor.decompress_mask(
+        #     shape=self.mask_shape,
+        #     first_idx=self.mask_first_idx,
+        #     idx_diff_compressed=self.mask_idx_diff_compressed,
+        # ).to_sparse_coo().indices()
+        indices = self.mask.to_sparse_coo().indices()
         return torch.sparse_coo_tensor(
-            indices=MaskCompressor.decompress_mask(
-                shape=self.mask_shape,
-                first_idx=self.mask_first_idx,
-                idx_diff_compressed=self.mask_idx_diff_compressed,
-            ).to_sparse_coo().indices(),
+            indices=indices,
             values=ValuesCompressor.decompress_values(
                 lengths=self.values_lengths,
                 compressed_values=self.compressed_values,
