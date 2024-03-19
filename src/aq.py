@@ -195,7 +195,7 @@ class ValuesCompressor:
         uncompressed_indices = torch.topk(values.abs(), k=length // 100).indices
         uncompressed_values = values[uncompressed_indices]
 
-        values_to_compress_mask = torch.full(size=(length,), fill_value=True, dtype=torch.bool)
+        values_to_compress_mask = torch.full(size=(length,), fill_value=True, dtype=torch.bool, device=values.device)
         values_to_compress_mask[uncompressed_indices] = False
 
         values_to_compress = values[values_to_compress_mask]
@@ -211,7 +211,7 @@ class ValuesCompressor:
     ):
         length = len(uncompressed_values) + len(decompressed_values)
 
-        output = torch.zeros(size=(length,), dtype=uncompressed_values.dtype)
+        output = torch.zeros(size=(length,), dtype=uncompressed_values.dtype, device=uncompressed_values.device)
         output[uncompressed_indices] = uncompressed_values
 
         compressed_values_mask = torch.full(size=(length,), fill_value=True, dtype=torch.bool)
