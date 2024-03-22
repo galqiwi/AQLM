@@ -209,11 +209,14 @@ def custom_galqiwi_mask_2(target: torch.Tensor, XTX: torch.Tensor, sparsity: flo
 def plot_rho(target_name: str):
     target_base = get_tensor(target_name)
 
-    percdamps = np.logspace(-2, 0, 21)
+    percdamps = np.linspace(-0.2, 0.2, 15)
     losses = []
     for percdamp in percdamps:
-        outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, percdamp=percdamp)
+        def mask_rule(target, XTX, sparsity):
+            return custom_galqiwi_mask_2(target, XTX, sparsity, alpha=percdamp)
+        outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, mask_rule=mask_rule, is_iterative='base_iter')
         loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
+        print(percdamp, loss)
         losses.append(loss)
 
     plt.plot(percdamps, losses)
@@ -372,16 +375,16 @@ def main():
         # 'LLAMA2_DIFF_TUNED.pt',
     ]
 
-    # for target in targets:
-    #     print(target)
-    #     plot_rho(target)
+    for target in targets:
+        print(target)
+        plot_rho(target)
 
-    results = []
-    for is_iterative, target in list(itertools.product((False,), targets)):
-        results.extend(test(target_name=target, is_iterative=is_iterative))
-
-    for result in results:
-        print(f'{result["name"]:<65} | {result["loss"]}')
+    # results = []
+    # for target, is_iterative in list(itertools.product(targets, ('base_iter',))):
+    #     results.extend(test(target_name=target, is_iterative=is_iterative))
+    #
+    # for result in results:
+    #     print(f'{result["name"]:<65} | {result["loss"]}')
 
 
 """

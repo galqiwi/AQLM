@@ -1,0 +1,2929 @@
+%!PS-Adobe-3.0
+%%BoundingBox: 18 36 577 806
+%%Title: Enscript Output
+%%Creator: GNU Enscript 1.6.5.90
+%%CreationDate: Fri Mar 22 16:32:42 2024
+%%Orientation: Portrait
+%%Pages: (atend)
+%%DocumentMedia: A4 595 842 0 () ()
+%%DocumentNeededResources: (atend)
+%%EndComments
+%%BeginProlog
+%%BeginResource: procset Enscript-Prolog 1.6.5 90
+%
+% Procedures.
+%
+
+/_S {	% save current state
+  /_s save def
+} def
+/_R {	% restore from saved state
+  _s restore
+} def
+
+/S {	% showpage protecting gstate
+  gsave
+  showpage
+  grestore
+} bind def
+
+/MF {	% fontname newfontname -> -	make a new encoded font
+  /newfontname exch def
+  /fontname exch def
+
+  /fontdict fontname findfont def
+  /newfont fontdict maxlength dict def
+
+  fontdict {
+    exch
+    dup /FID eq {
+      % skip FID pair
+      pop pop
+    } {
+      % copy to the new font dictionary
+      exch newfont 3 1 roll put
+    } ifelse
+  } forall
+
+  newfont /FontName newfontname put
+
+  % insert only valid encoding vectors
+  encoding_vector length 256 eq {
+    newfont /Encoding encoding_vector put
+  } if
+
+  newfontname newfont definefont pop
+} def
+
+/MF_PS { % fontname newfontname -> -	make a new font preserving its enc
+  /newfontname exch def
+  /fontname exch def
+
+  /fontdict fontname findfont def
+  /newfont fontdict maxlength dict def
+
+  fontdict {
+    exch
+    dup /FID eq {
+      % skip FID pair
+      pop pop
+    } {
+      % copy to the new font dictionary
+      exch newfont 3 1 roll put
+    } ifelse
+  } forall
+
+  newfont /FontName newfontname put
+
+  newfontname newfont definefont pop
+} def
+
+/SF { % fontname width height -> -	set a new font
+  /height exch def
+  /width exch def
+
+  findfont
+  [width 0 0 height 0 0] makefont setfont
+} def
+
+/SUF { % fontname width height -> -	set a new user font
+  /height exch def
+  /width exch def
+
+  /F-gs-user-font MF
+  /F-gs-user-font width height SF
+} def
+
+/SUF_PS { % fontname width height -> -	set a new user font preserving its enc
+  /height exch def
+  /width exch def
+
+  /F-gs-user-font MF_PS
+  /F-gs-user-font width height SF
+} def
+
+/M {moveto} bind def
+/s {show} bind def
+
+/Box {	% x y w h -> -			define box path
+  /d_h exch def /d_w exch def /d_y exch def /d_x exch def
+  d_x d_y  moveto
+  d_w 0 rlineto
+  0 d_h rlineto
+  d_w neg 0 rlineto
+  closepath
+} def
+
+/bgs {	% x y height blskip gray str -> -	show string with bg color
+  /str exch def
+  /gray exch def
+  /blskip exch def
+  /height exch def
+  /y exch def
+  /x exch def
+
+  gsave
+    x y blskip sub str stringwidth pop height Box
+    gray setgray
+    fill
+  grestore
+  x y M str s
+} def
+
+/bgcs { % x y height blskip red green blue str -> -  show string with bg color
+  /str exch def
+  /blue exch def
+  /green exch def
+  /red exch def
+  /blskip exch def
+  /height exch def
+  /y exch def
+  /x exch def
+
+  gsave
+    x y blskip sub str stringwidth pop height Box
+    red green blue setrgbcolor
+    fill
+  grestore
+  x y M str s
+} def
+
+% Highlight bars.
+/highlight_bars {	% nlines lineheight output_y_margin gray -> -
+  gsave
+    setgray
+    /ymarg exch def
+    /lineheight exch def
+    /nlines exch def
+
+    % This 2 is just a magic number to sync highlight lines to text.
+    0 d_header_y ymarg sub 2 sub translate
+
+    /cw d_output_w cols div def
+    /nrows d_output_h ymarg 2 mul sub lineheight div cvi def
+
+    % for each column
+    0 1 cols 1 sub {
+      cw mul /xp exch def
+
+      % for each rows
+      0 1 nrows 1 sub {
+        /rn exch def
+        rn lineheight mul neg /yp exch def
+        rn nlines idiv 2 mod 0 eq {
+	  % Draw highlight bar.  4 is just a magic indentation.
+	  xp 4 add yp cw 8 sub lineheight neg Box fill
+	} if
+      } for
+    } for
+
+  grestore
+} def
+
+% Line highlight bar.
+/line_highlight {	% x y width height gray -> -
+  gsave
+    /gray exch def
+    Box gray setgray fill
+  grestore
+} def
+
+% Column separator lines.
+/column_lines {
+  gsave
+    .1 setlinewidth
+    0 d_footer_h translate
+    /cw d_output_w cols div def
+    1 1 cols 1 sub {
+      cw mul 0 moveto
+      0 d_output_h rlineto stroke
+    } for
+  grestore
+} def
+
+% Column borders.
+/column_borders {
+  gsave
+    .1 setlinewidth
+    0 d_footer_h moveto
+    0 d_output_h rlineto
+    d_output_w 0 rlineto
+    0 d_output_h neg rlineto
+    closepath stroke
+  grestore
+} def
+
+% Do the actual underlay drawing
+/draw_underlay {
+  ul_style 0 eq {
+    ul_str true charpath stroke
+  } {
+    ul_str show
+  } ifelse
+} def
+
+% Underlay
+/underlay {	% - -> -
+  gsave
+    0 d_page_h translate
+    d_page_h neg d_page_w atan rotate
+
+    ul_gray setgray
+    ul_font setfont
+    /dw d_page_h dup mul d_page_w dup mul add sqrt def
+    ul_str stringwidth pop dw exch sub 2 div ul_h_ptsize -2 div moveto
+    draw_underlay
+  grestore
+} def
+
+/user_underlay {	% - -> -
+  gsave
+    ul_x ul_y translate
+    ul_angle rotate
+    ul_gray setgray
+    ul_font setfont
+    0 0 ul_h_ptsize 2 div sub moveto
+    draw_underlay
+  grestore
+} def
+
+% Page prefeed
+/page_prefeed {		% bool -> -
+  statusdict /prefeed known {
+    statusdict exch /prefeed exch put
+  } {
+    pop
+  } ifelse
+} def
+
+% Wrapped line markers
+/wrapped_line_mark {	% x y charwith charheight type -> -
+  /type exch def
+  /h exch def
+  /w exch def
+  /y exch def
+  /x exch def
+
+  type 2 eq {
+    % Black boxes (like TeX does)
+    gsave
+      0 setlinewidth
+      x w 4 div add y M
+      0 h rlineto w 2 div 0 rlineto 0 h neg rlineto
+      closepath fill
+    grestore
+  } {
+    type 3 eq {
+      % Small arrows
+      gsave
+        .2 setlinewidth
+        x w 2 div add y h 2 div add M
+        w 4 div 0 rlineto
+        x w 4 div add y lineto stroke
+
+        x w 4 div add w 8 div add y h 4 div add M
+        x w 4 div add y lineto
+	w 4 div h 8 div rlineto stroke
+      grestore
+    } {
+      % do nothing
+    } ifelse
+  } ifelse
+} def
+
+% EPSF import.
+
+/BeginEPSF {
+  /b4_Inc_state save def    		% Save state for cleanup
+  /dict_count countdictstack def	% Count objects on dict stack
+  /op_count count 1 sub def		% Count objects on operand stack
+  userdict begin
+  /showpage { } def
+  0 setgray 0 setlinecap
+  1 setlinewidth 0 setlinejoin
+  10 setmiterlimit [ ] 0 setdash newpath
+  /languagelevel where {
+    pop languagelevel
+    1 ne {
+      false setstrokeadjust false setoverprint
+    } if
+  } if
+} bind def
+
+/EndEPSF {
+  count op_count sub { pos } repeat	% Clean up stacks
+  countdictstack dict_count sub { end } repeat
+  b4_Inc_state restore
+} bind def
+
+% Check PostScript language level.
+/languagelevel where {
+  pop /gs_languagelevel languagelevel def
+} {
+  /gs_languagelevel 1 def
+} ifelse
+%%EndResource
+%%BeginResource: procset Enscript-Encoding-88591 1.6.5 90
+/encoding_vector [
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/space        	/exclam       	/quotedbl     	/numbersign   	
+/dollar       	/percent      	/ampersand    	/quoteright   	
+/parenleft    	/parenright   	/asterisk     	/plus         	
+/comma        	/hyphen       	/period       	/slash        	
+/zero         	/one          	/two          	/three        	
+/four         	/five         	/six          	/seven        	
+/eight        	/nine         	/colon        	/semicolon    	
+/less         	/equal        	/greater      	/question     	
+/at           	/A            	/B            	/C            	
+/D            	/E            	/F            	/G            	
+/H            	/I            	/J            	/K            	
+/L            	/M            	/N            	/O            	
+/P            	/Q            	/R            	/S            	
+/T            	/U            	/V            	/W            	
+/X            	/Y            	/Z            	/bracketleft  	
+/backslash    	/bracketright 	/asciicircum  	/underscore   	
+/quoteleft    	/a            	/b            	/c            	
+/d            	/e            	/f            	/g            	
+/h            	/i            	/j            	/k            	
+/l            	/m            	/n            	/o            	
+/p            	/q            	/r            	/s            	
+/t            	/u            	/v            	/w            	
+/x            	/y            	/z            	/braceleft    	
+/bar          	/braceright   	/tilde        	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/space        	/exclamdown   	/cent         	/sterling     	
+/currency     	/yen          	/brokenbar    	/section      	
+/dieresis     	/copyright    	/ordfeminine  	/guillemotleft	
+/logicalnot   	/hyphen       	/registered   	/macron       	
+/degree       	/plusminus    	/twosuperior  	/threesuperior	
+/acute        	/mu           	/paragraph    	/bullet       	
+/cedilla      	/onesuperior  	/ordmasculine 	/guillemotright	
+/onequarter   	/onehalf      	/threequarters	/questiondown 	
+/Agrave       	/Aacute       	/Acircumflex  	/Atilde       	
+/Adieresis    	/Aring        	/AE           	/Ccedilla     	
+/Egrave       	/Eacute       	/Ecircumflex  	/Edieresis    	
+/Igrave       	/Iacute       	/Icircumflex  	/Idieresis    	
+/Eth          	/Ntilde       	/Ograve       	/Oacute       	
+/Ocircumflex  	/Otilde       	/Odieresis    	/multiply     	
+/Oslash       	/Ugrave       	/Uacute       	/Ucircumflex  	
+/Udieresis    	/Yacute       	/Thorn        	/germandbls   	
+/agrave       	/aacute       	/acircumflex  	/atilde       	
+/adieresis    	/aring        	/ae           	/ccedilla     	
+/egrave       	/eacute       	/ecircumflex  	/edieresis    	
+/igrave       	/iacute       	/icircumflex  	/idieresis    	
+/eth          	/ntilde       	/ograve       	/oacute       	
+/ocircumflex  	/otilde       	/odieresis    	/divide       	
+/oslash       	/ugrave       	/uacute       	/ucircumflex  	
+/udieresis    	/yacute       	/thorn        	/ydieresis    	
+] def
+%%EndResource
+%%EndProlog
+%%BeginSetup
+%%IncludeResource: font Courier-Bold
+%%IncludeResource: font Courier
+/HFpt_w 10 def
+/HFpt_h 10 def
+/Courier-Bold /HF-gs-font MF
+/HF /HF-gs-font findfont [HFpt_w 0 0 HFpt_h 0 0] makefont def
+/Courier /F-gs-font MF
+/F-gs-font 9 9 SF
+/#copies 1 def
+% Pagedevice definitions:
+gs_languagelevel 1 gt {
+  <<
+    /PageSize [595 842] 
+  >> setpagedevice
+} if
+%%BeginResource: procset Enscript-Header-simple 1.6.5 90
+
+/do_header {	% print default simple header
+  gsave
+    d_header_x d_header_y HFpt_h 3 div add translate
+
+    HF setfont
+    user_header_p {
+      5 0 moveto user_header_left_str show
+
+      d_header_w user_header_center_str stringwidth pop sub 2 div
+      0 moveto user_header_center_str show
+
+      d_header_w user_header_right_str stringwidth pop sub 5 sub
+      0 moveto user_header_right_str show
+    } {
+      5 0 moveto fname show
+      45 0 rmoveto fmodstr show
+      45 0 rmoveto pagenumstr show
+    } ifelse
+
+  grestore
+} def
+%%EndResource
+/d_page_w 559 def
+/d_page_h 770 def
+/d_header_x 0 def
+/d_header_y 755 def
+/d_header_w 559 def
+/d_header_h 15 def
+/d_footer_x 0 def
+/d_footer_y 0 def
+/d_footer_w 559 def
+/d_footer_h 0 def
+/d_output_w 559 def
+/d_output_h 755 def
+/cols 1 def
+%%EndSetup
+%%Page: (1) 1
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 1 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (1) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+27.6 743 M (1:) s
+43.8 743 M
+(""" Core mathematics for Additive Quantization \(AQ\): initialization, reconstruction and beam s) s
+5 733 M
+(earch""") s
+27.6 723 M (2:) s
+43.8 723 M
+(import random) s
+27.6 713 M (3:) s
+43.8 713 M
+(from typing import List, Optional, Tuple, Union) s
+27.6 703 M (4:) s
+27.6 693 M (5:) s
+43.8 693 M
+(import torch) s
+27.6 683 M (6:) s
+43.8 683 M
+(import torch.nn as nn) s
+27.6 673 M (7:) s
+43.8 673 M
+(import torch.nn.functional as F) s
+27.6 663 M (8:) s
+43.8 663 M
+(from torch.utils.checkpoint import checkpoint) s
+27.6 653 M (9:) s
+43.8 653 M
+(from tqdm.auto import trange) s
+22.2 643 M (10:) s
+22.2 633 M (11:) s
+43.8 633 M
+(from src.kmeans import find_nearest_cluster, fit_faiss_kmeans, fit_kmeans, fit_kmeans_1d) s
+22.2 623 M (12:) s
+43.8 623 M
+(from src.utils import ellipsis, maybe_script) s
+22.2 613 M (13:) s
+22.2 603 M (14:) s
+22.2 593 M (15:) s
+43.8 593 M
+(class QuantizedLinear\(nn.Module\):) s
+22.2 583 M (16:) s
+43.8 583 M
+(    def __init__\(self, quantized_weight, bias: Optional[nn.Parameter]\):) s
+22.2 573 M (17:) s
+43.8 573 M
+(        super\(\).__init__\(\)) s
+22.2 563 M (18:) s
+43.8 563 M
+(        self.out_features, self.in_features = quantized_weight.out_features, quantized_weight.) s
+5 553 M
+(in_features) s
+22.2 543 M (19:) s
+43.8 543 M
+(        self.quantized_weight = quantized_weight) s
+22.2 533 M (20:) s
+43.8 533 M
+(        self.bias = bias) s
+22.2 523 M (21:) s
+43.8 523 M
+(        self.use_checkpoint = False) s
+22.2 513 M (22:) s
+22.2 503 M (23:) s
+43.8 503 M
+(    def _forward\(self, input: torch.Tensor\):) s
+22.2 493 M (24:) s
+43.8 493 M
+(        return F.linear\(input, self.quantized_weight\(\), self.bias\)) s
+22.2 483 M (25:) s
+22.2 473 M (26:) s
+43.8 473 M
+(    def forward\(self, input: torch.Tensor\):) s
+22.2 463 M (27:) s
+43.8 463 M
+(        if self.use_checkpoint and torch.is_grad_enabled\(\):) s
+22.2 453 M (28:) s
+43.8 453 M
+(            return checkpoint\() s
+22.2 443 M (29:) s
+43.8 443 M
+(                self._forward, input, use_reentrant=False, preserve_rng_state=False, determini) s
+5 433 M
+(sm_check="none") s
+22.2 423 M (30:) s
+43.8 423 M
+(            \)) s
+22.2 413 M (31:) s
+43.8 413 M
+(        return self._forward\(input\)) s
+22.2 403 M (32:) s
+22.2 393 M (33:) s
+22.2 383 M (34:) s
+43.8 383 M
+(class QuantizedWeight\(nn.Module\):) s
+22.2 373 M (35:) s
+43.8 373 M
+(    EPS = 1e-9) s
+22.2 363 M (36:) s
+22.2 353 M (37:) s
+43.8 353 M
+(    def __init__\() s
+22.2 343 M (38:) s
+43.8 343 M
+(        self,) s
+22.2 333 M (39:) s
+43.8 333 M
+(        *,) s
+22.2 323 M (40:) s
+43.8 323 M
+(        XTX: torch.Tensor,) s
+22.2 313 M (41:) s
+43.8 313 M
+(        reference_weight: torch.Tensor,) s
+22.2 303 M (42:) s
+43.8 303 M
+(        in_group_size: int,) s
+22.2 293 M (43:) s
+43.8 293 M
+(        out_group_size: int,) s
+22.2 283 M (44:) s
+43.8 283 M
+(        num_codebooks: int,) s
+22.2 273 M (45:) s
+43.8 273 M
+(        nbits_per_codebook: int = 8,) s
+22.2 263 M (46:) s
+43.8 263 M
+(        codebook_value_nbits: int = 16,) s
+22.2 253 M (47:) s
+43.8 253 M
+(        codebook_value_num_groups: int = 1,) s
+22.2 243 M (48:) s
+43.8 243 M
+(        scale_nbits: int = 0,) s
+22.2 233 M (49:) s
+43.8 233 M
+(        scale_in_group_size: Optional[int] = None,) s
+22.2 223 M (50:) s
+43.8 223 M
+(        scale_out_group_size: Optional[int] = None,) s
+22.2 213 M (51:) s
+43.8 213 M
+(        straight_through_gradient: Optional[bool] = None,) s
+22.2 203 M (52:) s
+43.8 203 M
+(        **init_kwargs,) s
+22.2 193 M (53:) s
+43.8 193 M
+(    \):) s
+22.2 183 M (54:) s
+43.8 183 M
+(        super\(\).__init__\(\)) s
+22.2 173 M (55:) s
+43.8 173 M
+(        self.out_features, self.in_features = reference_weight.shape) s
+22.2 163 M (56:) s
+43.8 163 M
+(        assert self.in_features % in_group_size == 0) s
+22.2 153 M (57:) s
+43.8 153 M
+(        assert self.out_features % out_group_size == 0) s
+22.2 143 M (58:) s
+22.2 133 M (59:) s
+43.8 133 M
+(        self.out_group_size, self.in_group_size = out_group_size, in_group_size) s
+22.2 123 M (60:) s
+43.8 123 M
+(        self.num_codebooks = num_codebooks) s
+22.2 113 M (61:) s
+43.8 113 M
+(        self.nbits_per_codebook = nbits_per_codebook) s
+22.2 103 M (62:) s
+43.8 103 M
+(        self.codebook_size = codebook_size = 2**nbits_per_codebook) s
+22.2 93 M (63:) s
+43.8 93 M
+(        self.codebook_value_nbits = codebook_value_nbits) s
+22.2 83 M (64:) s
+43.8 83 M
+(        self.codebook_value_num_groups = codebook_value_num_groups) s
+22.2 73 M (65:) s
+43.8 73 M
+(        self.codebook_value_clusters = None) s
+22.2 63 M (66:) s
+22.2 53 M (67:) s
+43.8 53 M
+(        if scale_in_group_size is None:) s
+22.2 43 M (68:) s
+43.8 43 M
+(            scale_in_group_size = in_group_size) s
+22.2 33 M (69:) s
+43.8 33 M
+(        if scale_out_group_size is None:) s
+22.2 23 M (70:) s
+43.8 23 M
+(            scale_out_group_size = out_group_size) s
+22.2 13 M (71:) s
+43.8 13 M
+(        assert scale_out_group_size % out_group_size == 0) s
+22.2 3 M (72:) s
+43.8 3 M
+(        assert scale_in_group_size % in_group_size == 0) s
+_R
+S
+%%Page: (2) 2
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 2 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (2) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+22.2 743 M (73:) s
+43.8 743 M
+(        self.scale_in_group_size_factor = scale_in_group_size // in_group_size) s
+22.2 733 M (74:) s
+43.8 733 M
+(        self.scale_out_group_size_factor = scale_out_group_size // out_group_size) s
+22.2 723 M (75:) s
+22.2 713 M (76:) s
+22.2 703 M (77:) s
+43.8 703 M
+(        self.scales = self.scales_clusters = self.scales_indices = None) s
+22.2 693 M (78:) s
+43.8 693 M
+(        if straight_through_gradient is None and scale_nbits > 0:) s
+22.2 683 M (79:) s
+43.8 683 M
+(            straight_through_gradient = scale_nbits >= 6) s
+22.2 673 M (80:) s
+43.8 673 M
+(        self.straight_through_gradient = straight_through_gradient) s
+22.2 663 M (81:) s
+43.8 663 M
+(        self.scale_nbits = scale_nbits) s
+22.2 653 M (82:) s
+22.2 643 M (83:) s
+43.8 643 M
+(        with torch.no_grad\(\):) s
+22.2 633 M (84:) s
+43.8 633 M
+(            weight_groupwise_for_scales = reference_weight.reshape\() s
+22.2 623 M (85:) s
+43.8 623 M
+(                self.out_features // scale_out_group_size, scale_out_group_size,) s
+22.2 613 M (86:) s
+43.8 613 M
+(                self.in_features // scale_in_group_size, scale_in_group_size) s
+22.2 603 M (87:) s
+43.8 603 M
+(            \).swapaxes\(1, 2\)  # [num_out_groups, num_in_groups, out_group_size, in_group_size]) s
+22.2 593 M (88:) s
+22.2 583 M (89:) s
+43.8 583 M
+(            if scale_nbits > 0:) s
+22.2 573 M (90:) s
+43.8 573 M
+(                scales = weight_groupwise_for_scales.norm\(dim=\(2, 3\), keepdim=True\) + self.EPS) s
+22.2 563 M (91:) s
+43.8 563 M
+(            else:) s
+22.2 553 M (92:) s
+43.8 553 M
+(                scales = weight_groupwise_for_scales.flatten\(1, -1\).norm\(dim=-1\).view\(-1, 1, 1) s
+5 543 M
+(, 1\) + self.EPS) s
+22.2 533 M (93:) s
+43.8 533 M
+(            # shape [num_out_groups, num_in_groups, 1, 1] if scale_nbits > 0 else [num_out_gro) s
+5 523 M
+(ups, num_in_groups, 1, 1]) s
+22.2 513 M (94:) s
+43.8 513 M
+(            del weight_groupwise_for_scales) s
+22.2 503 M (95:) s
+22.2 493 M (96:) s
+22.2 483 M (97:) s
+43.8 483 M
+(            weight_groupwise = reference_weight.reshape\() s
+22.2 473 M (98:) s
+43.8 473 M
+(                self.out_features // out_group_size, out_group_size, self.in_features // in_gr) s
+5 463 M
+(oup_size, in_group_size) s
+22.2 453 M (99:) s
+43.8 453 M
+(            \).swapaxes\(1, 2\)  # [num_out_groups, num_in_groups, out_group_size, in_group_size]) s
+16.8 443 M (100:) s
+16.8 433 M (101:) s
+16.8 423 M (102:) s
+43.8 423 M
+(            self.scales_are_lossless = scale_nbits == 0 or scale_nbits >= 16 or \(2**scale_nbit) s
+5 413 M
+(s >= scales.shape[1]\)) s
+16.8 403 M (103:) s
+43.8 403 M
+(            if self.scales_are_lossless or self.straight_through_gradient:) s
+16.8 393 M (104:) s
+43.8 393 M
+(                # ^-- this checks if scales can be preserved losslessly) s
+16.8 383 M (105:) s
+43.8 383 M
+(                self.scales = nn.Parameter\(scales, requires_grad=True\)) s
+16.8 373 M (106:) s
+43.8 373 M
+(            else:) s
+16.8 363 M (107:) s
+43.8 363 M
+(                scales_clusters, scales_indices, _ = fit_kmeans_1d\(scales.flatten\(1, -1\), k=2*) s
+5 353 M
+(*scale_nbits\)) s
+16.8 343 M (108:) s
+43.8 343 M
+(                self.scales_clusters = nn.Parameter\(scales_clusters, requires_grad=True\)) s
+16.8 333 M (109:) s
+43.8 333 M
+(                self.scales_indices = nn.Parameter\(scales_indices, requires_grad=False\)) s
+16.8 323 M (110:) s
+16.8 313 M (111:) s
+43.8 313 M
+(            weight_for_init = \(weight_groupwise / self.get_scales\(\)\).swapaxes\(1, 2\).reshape_as) s
+5 303 M
+(\(reference_weight\)) s
+16.8 293 M (112:) s
+43.8 293 M
+(            del weight_groupwise) s
+16.8 283 M (113:) s
+16.8 273 M (114:) s
+43.8 273 M
+(        codes, codebooks = init_aq_kmeans\() s
+16.8 263 M (115:) s
+43.8 263 M
+(            weight_for_init,) s
+16.8 253 M (116:) s
+43.8 253 M
+(            num_codebooks=num_codebooks,) s
+16.8 243 M (117:) s
+43.8 243 M
+(            out_group_size=out_group_size,) s
+16.8 233 M (118:) s
+43.8 233 M
+(            in_group_size=in_group_size,) s
+16.8 223 M (119:) s
+43.8 223 M
+(            codebook_size=self.codebook_size,) s
+16.8 213 M (120:) s
+43.8 213 M
+(            **init_kwargs,) s
+16.8 203 M (121:) s
+43.8 203 M
+(        \)) s
+16.8 193 M (122:) s
+16.8 183 M (123:) s
+43.8 183 M
+(        self.codebooks = nn.Parameter\() s
+16.8 173 M (124:) s
+43.8 173 M
+(            codebooks, requires_grad=True) s
+16.8 163 M (125:) s
+43.8 163 M
+(        \)  # [num_codebooks, codebook_size, out_group_size, in_group_size]) s
+16.8 153 M (126:) s
+43.8 153 M
+(        self.codes = nn.Parameter\(codes, requires_grad=False\)  #  [num_out_groups, num_in_grou) s
+5 143 M
+(ps, num_codebooks]) s
+16.8 133 M (127:) s
+16.8 123 M (128:) s
+43.8 123 M
+(    def get_codebooks\(self\) -> torch.Tensor:) s
+16.8 113 M (129:) s
+43.8 113 M
+(        """Get quantization codebooks or reconstruct them from second level quantization \(see ) s
+5 103 M
+(codebook_values_nbits\)""") s
+16.8 93 M (130:) s
+43.8 93 M
+(        if self.codebook_value_nbits >= 16:) s
+16.8 83 M (131:) s
+43.8 83 M
+(            return self.codebooks) s
+16.8 73 M (132:) s
+43.8 73 M
+(        elif 0 < self.codebook_value_nbits < 16:) s
+16.8 63 M (133:) s
+43.8 63 M
+(            with torch.no_grad\(\):) s
+16.8 53 M (134:) s
+43.8 53 M
+(                codebooks_dimshuffle = \() s
+16.8 43 M (135:) s
+43.8 43 M
+(                    self.codebooks.reshape\() s
+16.8 33 M (136:) s
+43.8 33 M
+(                        self.num_codebooks,) s
+16.8 23 M (137:) s
+43.8 23 M
+(                        self.codebook_value_num_groups,) s
+16.8 13 M (138:) s
+43.8 13 M
+(                        self.codebook_size // self.codebook_value_num_groups,) s
+16.8 3 M (139:) s
+43.8 3 M
+(                        self.out_group_size,) s
+_R
+S
+%%Page: (3) 3
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 3 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (3) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (140:) s
+43.8 743 M
+(                        self.in_group_size,) s
+16.8 733 M (141:) s
+43.8 733 M
+(                    \)) s
+16.8 723 M (142:) s
+43.8 723 M
+(                    .permute\(0, 1, 3, 4, 2\)) s
+16.8 713 M (143:) s
+43.8 713 M
+(                    .flatten\(0, -2\)) s
+16.8 703 M (144:) s
+43.8 703 M
+(                \)) s
+16.8 693 M (145:) s
+43.8 693 M
+(                self.codebook_value_clusters, _unused, reconstructed_codebooks_dimshuffle = fi) s
+5 683 M
+(t_kmeans_1d\() s
+16.8 673 M (146:) s
+43.8 673 M
+(                    codebooks_dimshuffle,) s
+16.8 663 M (147:) s
+43.8 663 M
+(                    k=2**self.codebook_value_nbits,) s
+16.8 653 M (148:) s
+43.8 653 M
+(                    initial_clusters=self.codebook_value_clusters,) s
+16.8 643 M (149:) s
+43.8 643 M
+(                \)) s
+16.8 633 M (150:) s
+43.8 633 M
+(                reconstructed_codebooks = \() s
+16.8 623 M (151:) s
+43.8 623 M
+(                    reconstructed_codebooks_dimshuffle.view\() s
+16.8 613 M (152:) s
+43.8 613 M
+(                        self.num_codebooks,) s
+16.8 603 M (153:) s
+43.8 603 M
+(                        self.codebook_value_num_groups,) s
+16.8 593 M (154:) s
+43.8 593 M
+(                        self.out_group_size,) s
+16.8 583 M (155:) s
+43.8 583 M
+(                        self.in_group_size,) s
+16.8 573 M (156:) s
+43.8 573 M
+(                        self.codebook_size // self.codebook_value_num_groups,) s
+16.8 563 M (157:) s
+43.8 563 M
+(                    \)) s
+16.8 553 M (158:) s
+43.8 553 M
+(                    .permute\(0, 1, 4, 2, 3\)) s
+16.8 543 M (159:) s
+43.8 543 M
+(                    .reshape_as\(self.codebooks\)) s
+16.8 533 M (160:) s
+43.8 533 M
+(                \)) s
+16.8 523 M (161:) s
+43.8 523 M
+(            if torch.is_grad_enabled\(\):) s
+16.8 513 M (162:) s
+43.8 513 M
+(                reconstructed_codebooks = reconstructed_codebooks + \(self.codebooks - self.cod) s
+5 503 M
+(ebooks.detach\(\)\)) s
+16.8 493 M (163:) s
+43.8 493 M
+(            return reconstructed_codebooks) s
+16.8 483 M (164:) s
+43.8 483 M
+(        raise NotImplementedError\(f"{self.codebook_value_nbits}-bit codebook values are not su) s
+5 473 M
+(pported"\)) s
+16.8 463 M (165:) s
+16.8 453 M (166:) s
+43.8 453 M
+(    def get_scales\(self\) -> torch.Tensor:) s
+16.8 443 M (167:) s
+43.8 443 M
+(        """Get per-channel or per-group quantization scales or reconstruct those scales based ) s
+5 433 M
+(on scales_nbits""") s
+16.8 423 M (168:) s
+43.8 423 M
+(        if self.scale_nbits == 0 or self.scales_are_lossless:) s
+16.8 413 M (169:) s
+43.8 413 M
+(            scales = self.scales  # scales are not quantized or the quantization is lossless) s
+16.8 403 M (170:) s
+43.8 403 M
+(        elif self.straight_through_gradient:) s
+16.8 393 M (171:) s
+43.8 393 M
+(            with torch.no_grad\(\):) s
+16.8 383 M (172:) s
+43.8 383 M
+(                self.scales_clusters, _, dequantized_scales = fit_kmeans_1d\() s
+16.8 373 M (173:) s
+43.8 373 M
+(                    self.scales.flatten\(1, -1\), k=2**self.scale_nbits, initial_clusters=self.s) s
+5 363 M
+(cales_clusters) s
+16.8 353 M (174:) s
+43.8 353 M
+(                \)) s
+16.8 343 M (175:) s
+43.8 343 M
+(                dequantized_scales = dequantized_scales.reshape_as\(self.scales\)) s
+16.8 333 M (176:) s
+43.8 333 M
+(            if torch.is_grad_enabled\(\) and self.scales.requires_grad:) s
+16.8 323 M (177:) s
+43.8 323 M
+(                dequantized_scales = dequantized_scales + \(self.scales - self.scales.detach\(\)\)) s
+16.8 313 M (178:) s
+43.8 313 M
+(            scales = dequantized_scales) s
+16.8 303 M (179:) s
+43.8 303 M
+(        else:  # train scale codebook only) s
+16.8 293 M (180:) s
+43.8 293 M
+(            scales = self.scales_clusters.gather\(1, self.scales_indices\)[:, :, None, None]) s
+16.8 283 M (181:) s
+16.8 273 M (182:) s
+43.8 273 M
+(        if scales.numel\(\) != scales.shape[0]: # group-wise scales   \(i.e. not 1d scales\)) s
+16.8 263 M (183:) s
+43.8 263 M
+(            assert scales.ndim == 4) s
+16.8 253 M (184:) s
+43.8 253 M
+(            assert scales.shape[2] == scales.shape[3] == 1) s
+16.8 243 M (185:) s
+43.8 243 M
+(            # if replicate each scale several times) s
+16.8 233 M (186:) s
+43.8 233 M
+(            scales = scales[:, None, :, None, :, :].tile\() s
+16.8 223 M (187:) s
+43.8 223 M
+(                1, self.scale_out_group_size_factor, 1, self.scale_in_group_size_factor, 1, 1) s
+16.8 213 M (188:) s
+43.8 213 M
+(            \).flatten\(2, 3\).flatten\(0, 1\)) s
+16.8 203 M (189:) s
+43.8 203 M
+(        return scales) s
+16.8 193 M (190:) s
+16.8 183 M (191:) s
+43.8 183 M
+(    def forward\(self, selection: Union[slice, ellipsis, torch.Tensor] = ...\):) s
+16.8 173 M (192:) s
+43.8 173 M
+(        """) s
+16.8 163 M (193:) s
+43.8 163 M
+(        Differentably reconstruct the weight \(or parts thereof\) from compressed components) s
+16.8 153 M (194:) s
+43.8 153 M
+(        :param selection: By default, reconstruct the entire weight. If selection is specified) s
+5 143 M
+(, this method will instead) s
+16.8 133 M (195:) s
+43.8 133 M
+(            reconstruct a portion of weight for the corresponding output dimensions \(used for ) s
+5 123 M
+(parallelism\).) s
+16.8 113 M (196:) s
+43.8 113 M
+(            The indices / slices must correspond to output channels \(if out_group_size==1\) or ) s
+5 103 M
+(groups \(if > 1\).) s
+16.8 93 M (197:) s
+43.8 93 M
+(            Formally, the indices must be in range [ 0 , self.out_features // self.out_group_s) s
+5 83 M
+(ize \)) s
+16.8 73 M (198:) s
+16.8 63 M (199:) s
+43.8 63 M
+(        """) s
+16.8 53 M (200:) s
+43.8 53 M
+(        weight = _dequantize_weight\(self.codes[selection], self.get_codebooks\(\), self.get_scal) s
+5 43 M
+(es\(\)[selection]\)) s
+16.8 33 M (201:) s
+43.8 33 M
+(        return weight) s
+16.8 23 M (202:) s
+16.8 13 M (203:) s
+43.8 13 M
+(    @torch.no_grad\(\)) s
+16.8 3 M (204:) s
+43.8 3 M
+(    def beam_search_update_codes_\() s
+_R
+S
+%%Page: (4) 4
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 4 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (4) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (205:) s
+43.8 743 M
+(        self,) s
+16.8 733 M (206:) s
+43.8 733 M
+(        XTX: torch.Tensor,) s
+16.8 723 M (207:) s
+43.8 723 M
+(        reference_weight: torch.Tensor,) s
+16.8 713 M (208:) s
+43.8 713 M
+(        *,) s
+16.8 703 M (209:) s
+43.8 703 M
+(        selection: Union[slice, ellipsis, torch.LongTensor] = ...,) s
+16.8 693 M (210:) s
+43.8 693 M
+(        **kwargs,) s
+16.8 683 M (211:) s
+43.8 683 M
+(    \) -> torch:) s
+16.8 673 M (212:) s
+43.8 673 M
+(        """) s
+16.8 663 M (213:) s
+43.8 663 M
+(        Update self.codes in-place via beam search so as to minimize squared errors. Return th) s
+5 653 M
+(e updated codes.) s
+16.8 643 M (214:) s
+43.8 643 M
+(        :param XTX: pairwise products of input features matmul\(X.transpose\(\), X\), shape: [in_f) s
+5 633 M
+(eatures, in_features]) s
+16.8 623 M (215:) s
+43.8 623 M
+(        :note: if XTX is divided by dataset size, this function will return *mean* squared err) s
+5 613 M
+(or) s
+16.8 603 M (216:) s
+43.8 603 M
+(        :param reference_weight: original weight matrix that is being quantized, shape: [out_f) s
+5 593 M
+(eatures, in_features]) s
+16.8 583 M (217:) s
+43.8 583 M
+(        :note: if selection is specified, reference_weight must instead be [num_selected_out_f) s
+5 573 M
+(eatures, in_features]) s
+16.8 563 M (218:) s
+43.8 563 M
+(        :param selection:  By default, this function updates all codes, If selection specified) s
+5 553 M
+(, it will instead) s
+16.8 543 M (219:) s
+43.8 543 M
+(            update only the codes for a portion of output dimensions \(used for parallelism\).) s
+16.8 533 M (220:) s
+43.8 533 M
+(            The indices / slices must correspond to output channels \(if out_group_size==1\) or ) s
+5 523 M
+(groups \(if > 1\).) s
+16.8 513 M (221:) s
+43.8 513 M
+(            Formally, the indices must be in range [ 0 , self.out_features // self.out_group_s) s
+5 503 M
+(ize \)) s
+16.8 493 M (222:) s
+43.8 493 M
+(        :param beam_size: consider up to this many best encoding combinations \(this param is p) s
+5 483 M
+(assed through via kwargs\)) s
+16.8 473 M (223:) s
+43.8 473 M
+(        :param kwargs: any additional keyword arguments are forwarded to beam_search_optimal_c) s
+5 463 M
+(odes function) s
+16.8 453 M (224:) s
+43.8 453 M
+(        :returns: the updated codes) s
+16.8 443 M (225:) s
+43.8 443 M
+(        """) s
+16.8 433 M (226:) s
+43.8 433 M
+(        if self.scale_out_group_size_factor != 1:) s
+16.8 423 M (227:) s
+43.8 423 M
+(            assert selection == ..., "todo implement selection with scale_out_group_size") s
+16.8 413 M (228:) s
+43.8 413 M
+(        self.codes[selection] = beam_search_optimal_codes\() s
+16.8 403 M (229:) s
+43.8 403 M
+(            XTX=XTX,) s
+16.8 393 M (230:) s
+43.8 393 M
+(            reference_weight=reference_weight,) s
+16.8 383 M (231:) s
+43.8 383 M
+(            codebooks=self.get_codebooks\(\),) s
+16.8 373 M (232:) s
+43.8 373 M
+(            prev_codes=self.codes[selection],) s
+16.8 363 M (233:) s
+43.8 363 M
+(            scales=self.get_scales\(\)[selection],) s
+16.8 353 M (234:) s
+43.8 353 M
+(            **kwargs,) s
+16.8 343 M (235:) s
+43.8 343 M
+(        \)) s
+16.8 333 M (236:) s
+43.8 333 M
+(        return self.codes[selection]) s
+16.8 323 M (237:) s
+16.8 313 M (238:) s
+43.8 313 M
+(    def estimate_nbits_per_parameter\(self\) -> float:) s
+16.8 303 M (239:) s
+43.8 303 M
+(        """Calculate the effective number of bits per original matrix parameters""") s
+16.8 293 M (240:) s
+43.8 293 M
+(        num_parameters = self.out_features * self.in_features) s
+16.8 283 M (241:) s
+43.8 283 M
+(        group_size = self.out_group_size * self.in_group_size) s
+16.8 273 M (242:) s
+43.8 273 M
+(        num_out_groups = self.out_features // self.out_group_size) s
+16.8 263 M (243:) s
+43.8 263 M
+(        num_in_groups = self.in_features // self.in_group_size) s
+16.8 253 M (244:) s
+16.8 243 M (245:) s
+43.8 243 M
+(        matrix_store = num_parameters // group_size * self.num_codebooks * self.nbits_per_code) s
+5 233 M
+(book) s
+16.8 223 M (246:) s
+16.8 213 M (247:) s
+43.8 213 M
+(        codebooks_store = self.num_codebooks * self.codebook_size * group_size * self.codebook) s
+5 203 M
+(_value_nbits) s
+16.8 193 M (248:) s
+43.8 193 M
+(        if self.codebook_value_nbits < 16:) s
+16.8 183 M (249:) s
+43.8 183 M
+(            codebooks_store += \() s
+16.8 173 M (250:) s
+43.8 173 M
+(                2**self.codebook_value_nbits * self.num_codebooks * self.codebook_value_num_gr) s
+5 163 M
+(oups * group_size * 16) s
+16.8 153 M (251:) s
+43.8 153 M
+(            \)) s
+16.8 143 M (252:) s
+16.8 133 M (253:) s
+43.8 133 M
+(        if self.scale_nbits >= 16 or 2**self.scale_nbits >= num_in_groups:  # group-wise scale) s
+5 123 M
+(s in 16 bit) s
+16.8 113 M (254:) s
+43.8 113 M
+(            scale_num_out_groups = num_out_groups // self.scale_out_group_size_factor) s
+16.8 103 M (255:) s
+43.8 103 M
+(            scale_num_in_groups = num_in_groups // self.scale_in_group_size_factor) s
+16.8 93 M (256:) s
+43.8 93 M
+(            scale_store = self.scale_nbits * scale_num_out_groups * scale_num_in_groups) s
+16.8 83 M (257:) s
+43.8 83 M
+(        elif 0 < self.scale_nbits < 16:  # use scale quantization codebooks) s
+16.8 73 M (258:) s
+43.8 73 M
+(            scale_store = self.scale_nbits * num_out_groups * num_in_groups) s
+16.8 63 M (259:) s
+43.8 63 M
+(            scale_store += num_out_groups * 2**self.scale_nbits * 16) s
+16.8 53 M (260:) s
+43.8 53 M
+(        elif self.scale_nbits == 0:  # no group-wise scales; use global 1d scales instead) s
+16.8 43 M (261:) s
+43.8 43 M
+(            scale_store = num_out_groups * 16) s
+16.8 33 M (262:) s
+43.8 33 M
+(        else:) s
+16.8 23 M (263:) s
+43.8 23 M
+(            assert False) s
+16.8 13 M (264:) s
+16.8 3 M (265:) s
+43.8 3 M
+(        return \(matrix_store + codebooks_store + scale_store\) / num_parameters) s
+_R
+S
+%%Page: (5) 5
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 5 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (5) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (266:) s
+16.8 733 M (267:) s
+43.8 733 M
+(    def extra_repr\(self\) -> str:) s
+16.8 723 M (268:) s
+43.8 723 M
+(        return f"{self.out_features=}, {self.in_features=}, bits_per_parameter={self.estimate_) s
+5 713 M
+(nbits_per_parameter\(\)}") s
+16.8 703 M (269:) s
+16.8 693 M (270:) s
+16.8 683 M (271:) s
+43.8 683 M
+(@torch.inference_mode\(\)) s
+16.8 673 M (272:) s
+43.8 673 M
+(def beam_search_optimal_codes\() s
+16.8 663 M (273:) s
+43.8 663 M
+(    *,) s
+16.8 653 M (274:) s
+43.8 653 M
+(    XTX: torch.Tensor,) s
+16.8 643 M (275:) s
+43.8 643 M
+(    reference_weight: torch.Tensor,) s
+16.8 633 M (276:) s
+43.8 633 M
+(    codebooks: torch.Tensor,) s
+16.8 623 M (277:) s
+43.8 623 M
+(    prev_codes: torch.IntTensor,) s
+16.8 613 M (278:) s
+43.8 613 M
+(    scales: Optional[torch.Tensor],) s
+16.8 603 M (279:) s
+43.8 603 M
+(    beam_size: int,) s
+16.8 593 M (280:) s
+43.8 593 M
+(    dim_rng: Optional[random.Random] = None,) s
+16.8 583 M (281:) s
+43.8 583 M
+(    code_penalties: Optional[torch.Tensor] = None,) s
+16.8 573 M (282:) s
+43.8 573 M
+(    verbose: bool,) s
+16.8 563 M (283:) s
+43.8 563 M
+(\):) s
+16.8 553 M (284:) s
+43.8 553 M
+(    """) s
+16.8 543 M (285:) s
+43.8 543 M
+(    :param XTX: pairwise products of input features matmul\(X.transpose\(\), X\), shape: [in_featu) s
+5 533 M
+(res, in_features]) s
+16.8 523 M (286:) s
+43.8 523 M
+(    :note: if XTX is divided by dataset size, this function will return *mean* squared error) s
+16.8 513 M (287:) s
+43.8 513 M
+(    :param reference_weight: original weight matrix that is being quantized, shape: [out_featu) s
+5 503 M
+(res, in_features]) s
+16.8 493 M (288:) s
+43.8 493 M
+(    :param codebooks: look-up tables of codes, shape: [num_codebooks, codebook_size, out_group) s
+5 483 M
+(_siz, in_group_size]) s
+16.8 473 M (289:) s
+43.8 473 M
+(    :param prev_codes: previous-best integer weight codes, shape: [num_out_groups, num_in_grou) s
+5 463 M
+(ps, num_codebooks]) s
+16.8 453 M (290:) s
+43.8 453 M
+(    :param scales: weight will be multiplied by this factor, shape = [num_out_groups, num_in_g) s
+5 443 M
+(roups or 1, 1, 1]) s
+16.8 433 M (291:) s
+43.8 433 M
+(    :param dim_rng: a source of randomness to \(optionally\) shuffle the order in which the beam) s
+5 423 M
+( search runs) s
+16.8 413 M (292:) s
+43.8 413 M
+(      None = update dimensions and codebooks in their natural order \(0, 1, ..., n\)) s
+16.8 403 M (293:) s
+43.8 403 M
+(      random.Random\(optional_seed\) = shuffle dimensions at random, optionally using the specif) s
+5 393 M
+(ied seed) s
+16.8 383 M (294:) s
+16.8 373 M (295:) s
+43.8 373 M
+(    :param beam_size: consider up to this many best encoding combinations) s
+16.8 363 M (296:) s
+43.8 363 M
+(    :param code_penalties: a pytorch float tensor of shape [num_codebooks, codebook_size]) s
+16.8 353 M (297:) s
+43.8 353 M
+(        Penalize the beam search objective by code_penalties[m][i] for every use of ith code f) s
+5 343 M
+(rom mth codebook) s
+16.8 333 M (298:) s
+43.8 333 M
+(    :param verbose: if True, draw a progressbar and periodically print best loss) s
+16.8 323 M (299:) s
+43.8 323 M
+(    :return: best quantization codes found, same shape as prev_codes) s
+16.8 313 M (300:) s
+16.8 303 M (301:) s
+43.8 303 M
+(    :intuition: the beam search needs to produce weight codes that minimize MSE error) s
+16.8 293 M (302:) s
+43.8 293 M
+(    - the codes are of shape [out_features / out_group_size, in_features / in_group_size, num_) s
+5 283 M
+(codebooks]) s
+16.8 273 M (303:) s
+16.8 263 M (304:) s
+43.8 263 M
+(    Out of those three dimensions, out_features is "independent", i.e. changing code in) s
+16.8 253 M (305:) s
+43.8 253 M
+(    one output feature does not increase the MSE error for another feature. Therefore,) s
+16.8 243 M (306:) s
+43.8 243 M
+(    beam search for different output features can run in independently in parallel.) s
+16.8 233 M (307:) s
+16.8 223 M (308:) s
+43.8 223 M
+(    Neither \(in_features / in_group_size\) nor \(num_codebooks\) dimension are independent:) s
+16.8 213 M (309:) s
+43.8 213 M
+(    - changing the encoding for one feature can compensate the error from encoding another, OB) s
+5 203 M
+(C-style) s
+16.8 193 M (310:) s
+43.8 193 M
+(    - for a single weight group, changing code in one codebook can affect the optimal choice i) s
+5 183 M
+(n another codebook) s
+16.8 173 M (311:) s
+43.8 173 M
+(    Therefore, beam search must go in a double loop over \(in_features/in_group_size\) and \(num_) s
+5 163 M
+(codebooks\) dimensions) s
+16.8 153 M (312:) s
+16.8 143 M (313:) s
+43.8 143 M
+(    This leaves one choice: which dimension used for outer loop, and which one goes is in the ) s
+5 133 M
+(inner loop?) s
+16.8 123 M (314:) s
+43.8 123 M
+(    Due to the nature of beam search, interactions between dimensions of inner loop will be ex) s
+5 113 M
+(plored better.) s
+16.8 103 M (315:) s
+43.8 103 M
+(    We chose to use \(in_features/in_group_size\) in the outer loop and \(num_codebooks\) for the ) s
+5 93 M
+(inner loop.) s
+16.8 83 M (316:) s
+43.8 83 M
+(    This is based on an intuition from GPTQ: you can get decent performance by quantizing each) s
+5 73 M
+( input unit ...) s
+16.8 63 M (317:) s
+43.8 63 M
+(    ... greedily --- GPTQ does not change quantizations for previously quantized features and ) s
+5 53 M
+(works fine.) s
+16.8 43 M (318:) s
+43.8 43 M
+(    Therefore, we believe that we can also use a greedy approach to compensate error between i) s
+5 33 M
+(nput features.) s
+16.8 23 M (319:) s
+43.8 23 M
+(    In turn, we believe that the codes used to encode the same weights \(additively\) are more i) s
+5 13 M
+(nter-dependent.) s
+16.8 3 M (320:) s
+43.8 3 M
+(    This should be treated as an educated guess with no proof and no ablation \(as of the time ) s
+_R
+S
+%%Page: (6) 6
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 6 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (6) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+5 743 M
+(of writing\).) s
+16.8 733 M (321:) s
+16.8 723 M (322:) s
+43.8 723 M
+(    """) s
+16.8 713 M (323:) s
+43.8 713 M
+(    num_out_groups, num_in_groups, num_codebooks = prev_codes.shape) s
+16.8 703 M (324:) s
+43.8 703 M
+(    num_codebooks, codebook_size, out_group_size, in_group_size = codebooks.shape) s
+16.8 693 M (325:) s
+43.8 693 M
+(    in_features = num_in_groups * in_group_size) s
+16.8 683 M (326:) s
+43.8 683 M
+(    out_features = num_out_groups * out_group_size) s
+16.8 673 M (327:) s
+43.8 673 M
+(    assert reference_weight.shape == \(out_features, in_features\)) s
+16.8 663 M (328:) s
+43.8 663 M
+(    prev_weight = _dequantize_weight\(prev_codes, codebooks, scales\)) s
+16.8 653 M (329:) s
+16.8 643 M (330:) s
+43.8 643 M
+(    # initialize all beam codes as previous codes - so they can be updated during beam search) s
+16.8 633 M (331:) s
+43.8 633 M
+(    beam_codes = prev_codes.unsqueeze\(0\)) s
+16.8 623 M (332:) s
+43.8 623 M
+(    # beam_codes shape: [current beam_size, num_out_groups, num_in_groups, num_codebooks], ini) s
+5 613 M
+(tial beam_size = 1) s
+16.8 603 M (333:) s
+43.8 603 M
+(    beam_weights = prev_weight.unsqueeze\(0\)) s
+16.8 593 M (334:) s
+43.8 593 M
+(    # beam_weights shape: [current beam_size, out_features, in_features], initial beam size = ) s
+5 583 M
+(1) s
+16.8 573 M (335:) s
+16.8 563 M (336:) s
+43.8 563 M
+(    beam_losses = \() s
+16.8 553 M (337:) s
+43.8 553 M
+(        _channelwise_squared_error\(XTX, prev_weight, reference_weight\)) s
+16.8 543 M (338:) s
+43.8 543 M
+(        .reshape\(1, num_out_groups, out_group_size\)) s
+16.8 533 M (339:) s
+43.8 533 M
+(        .sum\(-1\)) s
+16.8 523 M (340:) s
+43.8 523 M
+(    \)) s
+16.8 513 M (341:) s
+43.8 513 M
+(    # beam_losses shape: [current beam_size, num_out_groups], initial beam_size = 1) s
+16.8 503 M (342:) s
+43.8 503 M
+(    if code_penalties is not None:) s
+16.8 493 M (343:) s
+43.8 493 M
+(        # Compute counts for each code in each codebook, initialize regularizer) s
+16.8 483 M (344:) s
+43.8 483 M
+(        codebook_ids = torch.arange\(num_codebooks, device=beam_losses.device\).view\(1, 1, 1, -1) s
+5 473 M
+(\)) s
+16.8 463 M (345:) s
+43.8 463 M
+(        per_channel_regularizers = code_penalties[codebook_ids, beam_codes].sum\(dim=\(2, 3\)\)  #) s
+5 453 M
+( [beam_size, num_out_groups]) s
+16.8 443 M (346:) s
+43.8 443 M
+(        del codebook_ids) s
+16.8 433 M (347:) s
+43.8 433 M
+(        beam_losses += beam_losses + per_channel_regularizers) s
+16.8 423 M (348:) s
+16.8 413 M (349:) s
+43.8 413 M
+(    if verbose:) s
+16.8 403 M (350:) s
+43.8 403 M
+(        progressbar = trange\(num_in_groups * num_codebooks\)) s
+16.8 393 M (351:) s
+16.8 383 M (352:) s
+43.8 383 M
+(    def _make_range\(n: int\) -> list:) s
+16.8 373 M (353:) s
+43.8 373 M
+(        seq = list\(range\(n\)\)) s
+16.8 363 M (354:) s
+43.8 363 M
+(        if dim_rng is not None:) s
+16.8 353 M (355:) s
+43.8 353 M
+(            dim_rng.shuffle\(seq\)) s
+16.8 343 M (356:) s
+43.8 343 M
+(        return seq) s
+16.8 333 M (357:) s
+16.8 323 M (358:) s
+43.8 323 M
+(    for input_group_index in _make_range\(num_in_groups\):) s
+16.8 313 M (359:) s
+43.8 313 M
+(        for codebook_index in _make_range\(num_codebooks\):) s
+16.8 303 M (360:) s
+43.8 303 M
+(            ### part 1: compute losses for every possible candidate for one given codebook and) s
+5 293 M
+( input group.) s
+16.8 283 M (361:) s
+43.8 283 M
+(            # Currently, we compute errors for all output features in parallel in a vectorized) s
+5 273 M
+( fashion.) s
+16.8 263 M (362:) s
+43.8 263 M
+(            best_losses, best_indices = _beam_search_squared_errors\() s
+16.8 253 M (363:) s
+43.8 253 M
+(                XTX=XTX,) s
+16.8 243 M (364:) s
+43.8 243 M
+(                reference_weight=reference_weight,) s
+16.8 233 M (365:) s
+43.8 233 M
+(                codebooks=codebooks,) s
+16.8 223 M (366:) s
+43.8 223 M
+(                scales=scales,) s
+16.8 213 M (367:) s
+43.8 213 M
+(                beam_losses=beam_losses,) s
+16.8 203 M (368:) s
+43.8 203 M
+(                beam_codes=beam_codes,) s
+16.8 193 M (369:) s
+43.8 193 M
+(                beam_weights=beam_weights,) s
+16.8 183 M (370:) s
+43.8 183 M
+(                input_group_index=input_group_index,) s
+16.8 173 M (371:) s
+43.8 173 M
+(                codebook_index=codebook_index,) s
+16.8 163 M (372:) s
+43.8 163 M
+(                k_best=beam_size,) s
+16.8 153 M (373:) s
+43.8 153 M
+(                code_penalties=code_penalties,) s
+16.8 143 M (374:) s
+43.8 143 M
+(            \)  # [current beam_size, codebook_size, num_out_groups]) s
+16.8 133 M (375:) s
+16.8 123 M (376:) s
+43.8 123 M
+(            # part 2: select beam_size new best codes and re-arrange beam to account for the f) s
+5 113 M
+(act that ...) s
+16.8 103 M (377:) s
+43.8 103 M
+(            # ... sometimes two or more top candidates originate from the same source in previ) s
+5 93 M
+(ous beam) s
+16.8 83 M (378:) s
+43.8 83 M
+(            beam_codes, beam_weights, beam_losses = _beam_search_select_best\() s
+16.8 73 M (379:) s
+43.8 73 M
+(                beam_codes=beam_codes,) s
+16.8 63 M (380:) s
+43.8 63 M
+(                beam_weights=beam_weights,) s
+16.8 53 M (381:) s
+43.8 53 M
+(                codebooks=codebooks,) s
+16.8 43 M (382:) s
+43.8 43 M
+(                scales=scales,) s
+16.8 33 M (383:) s
+43.8 33 M
+(                input_group_index=input_group_index,) s
+16.8 23 M (384:) s
+43.8 23 M
+(                codebook_index=codebook_index,) s
+16.8 13 M (385:) s
+43.8 13 M
+(                best_losses=best_losses,) s
+16.8 3 M (386:) s
+43.8 3 M
+(                best_indices=best_indices,) s
+_R
+S
+%%Page: (7) 7
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 7 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (7) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (387:) s
+43.8 743 M
+(                beam_size=beam_size,) s
+16.8 733 M (388:) s
+43.8 733 M
+(            \)) s
+16.8 723 M (389:) s
+16.8 713 M (390:) s
+43.8 713 M
+(            if verbose:) s
+16.8 703 M (391:) s
+43.8 703 M
+(                progressbar.update\(\)) s
+16.8 693 M (392:) s
+43.8 693 M
+(                if \(input_group_index * num_codebooks + codebook_index\) % verbose != 0:) s
+16.8 683 M (393:) s
+43.8 683 M
+(                    continue  # if update is an integer, compute metrics every \(this many\) bea) s
+5 673 M
+(m search steps) s
+16.8 663 M (394:) s
+43.8 663 M
+(                best_loss = beam_losses.min\(0\).values.sum\(\).item\(\) / out_features) s
+16.8 653 M (395:) s
+43.8 653 M
+(                info = f"in_group {input_group_index} / {num_in_groups} ") s
+16.8 643 M (396:) s
+43.8 643 M
+(                info += f"| codebook {codebook_index} / {num_codebooks} ") s
+16.8 633 M (397:) s
+43.8 633 M
+(                if code_penalties is None:) s
+16.8 623 M (398:) s
+43.8 623 M
+(                    info += f"| loss {best_loss:.10f}") s
+16.8 613 M (399:) s
+43.8 613 M
+(                else:  # un-regularize to restore MSE loss, report sparsity rate) s
+16.8 603 M (400:) s
+43.8 603 M
+(                    codebook_ids = torch.arange\(num_codebooks, device=beam_losses.device\).view) s
+5 593 M
+(\(1, 1, 1, -1\)) s
+16.8 583 M (401:) s
+43.8 583 M
+(                    best_cand_regularizer = code_penalties[codebook_ids, beam_codes[0]].sum\(\) ) s
+5 573 M
+(/ num_out_groups) s
+16.8 563 M (402:) s
+43.8 563 M
+(                    del codebook_ids) s
+16.8 553 M (403:) s
+43.8 553 M
+(                    best_loss = best_loss - best_cand_regularizer   # report loss without the ) s
+5 543 M
+(regularizer part) s
+16.8 533 M (404:) s
+43.8 533 M
+(                    info += f"| loss {best_loss:.5f} | reg {best_cand_regularizer:.5f} |") s
+16.8 523 M (405:) s
+43.8 523 M
+(                del best_loss) s
+16.8 513 M (406:) s
+43.8 513 M
+(                progressbar.desc = info) s
+16.8 503 M (407:) s
+43.8 503 M
+(    return beam_codes[0]) s
+16.8 493 M (408:) s
+16.8 483 M (409:) s
+16.8 473 M (410:) s
+43.8 473 M
+(@maybe_script) s
+16.8 463 M (411:) s
+43.8 463 M
+(def _dequantize_weight\() s
+16.8 453 M (412:) s
+43.8 453 M
+(    codes: torch.Tensor, codebooks: torch.Tensor, scales: Optional[torch.Tensor] = None) s
+16.8 443 M (413:) s
+43.8 443 M
+(\) -> torch.Tensor:) s
+16.8 433 M (414:) s
+43.8 433 M
+(    """) s
+16.8 423 M (415:) s
+43.8 423 M
+(    Decode float weights from quantization codes. Differentiable.) s
+16.8 413 M (416:) s
+43.8 413 M
+(    :param codes: tensor of integer quantization codes, shape [*dims, num_out_groups, num_in_g) s
+5 403 M
+(roups, num_codebooks]) s
+16.8 393 M (417:) s
+43.8 393 M
+(    :param codebooks: tensor of vectors for each quantization code, [num_codebooks, codebook_s) s
+5 383 M
+(ize, out_group_size, in_group_size]) s
+16.8 373 M (418:) s
+43.8 373 M
+(    :param scales: weight will be multiplied by this factor, must be broadcastble with [*dims,) s
+5 363 M
+( out_groups, num_in_groups, out_group_size, in_group_size]) s
+16.8 353 M (419:) s
+43.8 353 M
+(    :return: reconstructed weight tensor of shape [*dims, num_in_groups*group_size]) s
+16.8 343 M (420:) s
+43.8 343 M
+(    """) s
+16.8 333 M (421:) s
+43.8 333 M
+(    num_out_groups, num_in_groups, num_codebooks = codes.shape[-3:]) s
+16.8 323 M (422:) s
+43.8 323 M
+(    num_codebooks, codebook_size, out_group_size, in_group_size = codebooks.shape) s
+16.8 313 M (423:) s
+43.8 313 M
+(    out_features = num_out_groups * out_group_size) s
+16.8 303 M (424:) s
+43.8 303 M
+(    in_features = num_in_groups * in_group_size) s
+16.8 293 M (425:) s
+43.8 293 M
+(    codebook_offsets = torch.arange\() s
+16.8 283 M (426:) s
+43.8 283 M
+(        0, num_codebooks * codebook_size, codebook_size, device=codes.device) s
+16.8 273 M (427:) s
+43.8 273 M
+(    \)  # shape: [num_codebooks]) s
+16.8 263 M (428:) s
+43.8 263 M
+(    reconstructed_weight_flat = F.embedding_bag\() s
+16.8 253 M (429:) s
+43.8 253 M
+(        codes.flatten\(0, -2\) + codebook_offsets, codebooks.flatten\(0, 1\).flatten\(-2, -1\), mode) s
+5 243 M
+(="sum") s
+16.8 233 M (430:) s
+43.8 233 M
+(    \)  # [prod\(dims\) * num_out_groups * num_in_groups, out_group_size * in_group_size]) s
+16.8 223 M (431:) s
+16.8 213 M (432:) s
+43.8 213 M
+(    reconstructed_weight_groupwise = reconstructed_weight_flat.view\() s
+16.8 203 M (433:) s
+43.8 203 M
+(        list\(codes.shape[:-3]\) + [num_out_groups, num_in_groups, out_group_size, in_group_size) s
+5 193 M
+(]) s
+16.8 183 M (434:) s
+43.8 183 M
+(    \)) s
+16.8 173 M (435:) s
+43.8 173 M
+(    if scales is not None:) s
+16.8 163 M (436:) s
+43.8 163 M
+(        reconstructed_weight_groupwise = reconstructed_weight_groupwise.mul\(scales\)) s
+16.8 153 M (437:) s
+43.8 153 M
+(    return reconstructed_weight_groupwise.swapaxes\(-3, -2\).reshape\(list\(codes.shape[:-3]\) + [o) s
+5 143 M
+(ut_features, in_features]\)) s
+16.8 133 M (438:) s
+16.8 123 M (439:) s
+16.8 113 M (440:) s
+43.8 113 M
+(@maybe_script) s
+16.8 103 M (441:) s
+43.8 103 M
+(def _beam_search_squared_errors\() s
+16.8 93 M (442:) s
+43.8 93 M
+(    XTX: torch.Tensor,) s
+16.8 83 M (443:) s
+43.8 83 M
+(    reference_weight: torch.Tensor,) s
+16.8 73 M (444:) s
+43.8 73 M
+(    codebooks: torch.Tensor,) s
+16.8 63 M (445:) s
+43.8 63 M
+(    scales: Optional[torch.Tensor],) s
+16.8 53 M (446:) s
+43.8 53 M
+(    beam_losses: torch.Tensor,) s
+16.8 43 M (447:) s
+43.8 43 M
+(    beam_codes: torch.Tensor,) s
+16.8 33 M (448:) s
+43.8 33 M
+(    beam_weights: torch.Tensor,) s
+16.8 23 M (449:) s
+43.8 23 M
+(    input_group_index: int,) s
+16.8 13 M (450:) s
+43.8 13 M
+(    codebook_index: int,) s
+16.8 3 M (451:) s
+43.8 3 M
+(    k_best: int,) s
+_R
+S
+%%Page: (8) 8
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 8 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (8) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (452:) s
+43.8 743 M
+(    code_penalties: Optional[torch.Tensor] = None,) s
+16.8 733 M (453:) s
+43.8 733 M
+(\) -> tuple[torch.Tensor, torch.Tensor]:) s
+16.8 723 M (454:) s
+43.8 723 M
+(    """) s
+16.8 713 M (455:) s
+43.8 713 M
+(    Compute MSE or sum-of-squared-error losses for all possible ways to replace quantization c) s
+5 703 M
+(odes for one input group) s
+16.8 693 M (456:) s
+43.8 693 M
+(     and one codebook. Works in parallel for all output-dimension groups.) s
+16.8 683 M (457:) s
+16.8 673 M (458:) s
+43.8 673 M
+(    :param XTX: pairwise products of input features matmul\(X.transpose\(\), X\), shape: [in_featu) s
+5 663 M
+(res, in_features]) s
+16.8 653 M (459:) s
+43.8 653 M
+(    :note: if both XTX *and* beam_loses are divided by dataset size, this function will return) s
+5 643 M
+( mean squared error) s
+16.8 633 M (460:) s
+43.8 633 M
+(    :param reference_weight: original weight matrix that is being quantized, shape: [out_featu) s
+5 623 M
+(res, in_features]) s
+16.8 613 M (461:) s
+43.8 613 M
+(    :param codebooks: look-up tables of codes, shape: [num_codebooks, codebook_size, out_group) s
+5 603 M
+(_size, in_group_size]) s
+16.8 593 M (462:) s
+43.8 593 M
+(    :param scales: weight will be multiplied by this factor, [num_out_groups, num_in_groups, 1) s
+5 583 M
+(, 1]) s
+16.8 573 M (463:) s
+16.8 563 M (464:) s
+43.8 563 M
+(    :param beam_losses: sum-of-squared-error for each hypothesis in beam and for each output c) s
+5 553 M
+(hannel;) s
+16.8 543 M (465:) s
+43.8 543 M
+(        shape: [beam_size, num_out_groups]) s
+16.8 533 M (466:) s
+43.8 533 M
+(    :param beam_codes: a tensor with best weight codes, shape: [beam_size, num_out_groups, num) s
+5 523 M
+(_in_groups, num_codebooks]) s
+16.8 513 M (467:) s
+43.8 513 M
+(    :param beam_weights: a tensor with de-quantized beam_codes, shape: [beam_size, out_feature) s
+5 503 M
+(s, in_features]) s
+16.8 493 M (468:) s
+43.8 493 M
+(    :param input_group_index: an index of one group of in_features that is being re-encoded) s
+16.8 483 M (469:) s
+43.8 483 M
+(    :param codebook_index: an index of one codebook for that group of features that is being r) s
+5 473 M
+(e-encoded) s
+16.8 463 M (470:) s
+43.8 463 M
+(    :return: tuple\(Tensor, Tensor\) of 3d tensor of shape = [beam_size, k_best, num_out_groups]) s
+5 453 M
+(.) s
+16.8 443 M (471:) s
+43.8 443 M
+(        First one is float tensor of losses of k_best lowest square errors for each beam and o) s
+5 433 M
+(ut_group) s
+16.8 423 M (472:) s
+43.8 423 M
+(        Second one is int64 tensor of indices of k_best lowest square errors for each beam and) s
+5 413 M
+( out_group) s
+16.8 403 M (473:) s
+16.8 393 M (474:) s
+43.8 393 M
+(    :note: The code computes MSE using the square-of-difference expansion) s
+16.8 383 M (475:) s
+43.8 383 M
+(     ||X@W.T - sum_i X@\(Bi@Ci\).T||^2 = ||X@W.T||^2 - 2 <X@W.T, sum_i X@\(Bi@Ci\).T> + ||sum_i X@) s
+5 373 M
+(Bi@Ci||^2) s
+16.8 363 M (476:) s
+43.8 363 M
+(    where X[nsamples,in_features] is calibration data, W[out_features, in_features] is the ref) s
+5 353 M
+(erence weight,) s
+16.8 343 M (477:) s
+43.8 343 M
+(       C[num_codebooks, codebook_size, in_features] are learned codebooks \(Ci has shape [codeb) s
+5 333 M
+(ook_size, out_features]\)) s
+16.8 323 M (478:) s
+43.8 323 M
+(       B[num_codebooks, out_features, codebook_size] are one-hot encoded indices \(quantization) s
+5 313 M
+( codes\)) s
+16.8 303 M (479:) s
+43.8 303 M
+(    The formula above uses a single group per output "neuron" and a single group.) s
+16.8 293 M (480:) s
+43.8 293 M
+(    The algorithm below generalizes the formula for multiple groups and codebooks.) s
+16.8 283 M (481:) s
+16.8 273 M (482:) s
+43.8 273 M
+(    Furthermore, the algorithm does not compute the entire formula. Instead, it begins from so) s
+5 263 M
+(me baseline loss) s
+16.8 253 M (483:) s
+43.8 253 M
+(    and computes the change in loss from changing a single code to every possible altearnative) s
+5 243 M
+( code.) s
+16.8 233 M (484:) s
+43.8 233 M
+(    When computing the changed loss, the algorithm only computes the few affected parts of the) s
+5 223 M
+( loss formula above.) s
+16.8 213 M (485:) s
+43.8 213 M
+(    """) s
+16.8 203 M (486:) s
+43.8 203 M
+(    num_codebooks, codebook_size, out_group_size, in_group_size = codebooks.shape) s
+16.8 193 M (487:) s
+43.8 193 M
+(    beam_size, num_out_groups, num_in_groups, num_codebooks = beam_codes.shape) s
+16.8 183 M (488:) s
+43.8 183 M
+(    out_features = num_out_groups * out_group_size) s
+16.8 173 M (489:) s
+16.8 163 M (490:) s
+43.8 163 M
+(    input_group_slice = slice\(input_group_index * in_group_size, \(input_group_index + 1\) * in_) s
+5 153 M
+(group_size\)) s
+16.8 143 M (491:) s
+16.8 133 M (492:) s
+43.8 133 M
+(    prev_codes_part = beam_codes[:, :, input_group_index, codebook_index]  # [beam_size, num_o) s
+5 123 M
+(ut_groups]) s
+16.8 113 M (493:) s
+16.8 103 M (494:) s
+43.8 103 M
+(    if scales is not None:) s
+16.8 93 M (495:) s
+43.8 93 M
+(        scales_part = scales[:, input_group_index % scales.shape[1], :, :]  # [num_out_groups,) s
+5 83 M
+( 1, 1]) s
+16.8 73 M (496:) s
+43.8 73 M
+(    else:) s
+16.8 63 M (497:) s
+43.8 63 M
+(        scales_part = torch.empty\(0, device=XTX.device\)) s
+16.8 53 M (498:) s
+43.8 53 M
+(    prev_part_dequantized = F.embedding\(prev_codes_part, codebooks[codebook_index].flatten\(-2,) s
+5 43 M
+( -1\)\).view\() s
+16.8 33 M (499:) s
+43.8 33 M
+(        beam_size, out_features, in_group_size) s
+16.8 23 M (500:) s
+43.8 23 M
+(    \)  # previous codes de-quantized) s
+16.8 13 M (501:) s
+16.8 3 M (502:) s
+43.8 3 M
+(    prev_weight_part = prev_part_dequantized) s
+_R
+S
+%%Page: (9) 9
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 9 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (9) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (503:) s
+43.8 743 M
+(    if scales is not None:) s
+16.8 733 M (504:) s
+43.8 733 M
+(        prev_weight_part = \() s
+16.8 723 M (505:) s
+43.8 723 M
+(            prev_weight_part.view\(beam_size, num_out_groups, out_group_size, in_group_size\)) s
+16.8 713 M (506:) s
+43.8 713 M
+(            .mul\(scales_part\)) s
+16.8 703 M (507:) s
+43.8 703 M
+(            .view\(beam_size, out_features, in_group_size\)) s
+16.8 693 M (508:) s
+43.8 693 M
+(        \)) s
+16.8 683 M (509:) s
+16.8 673 M (510:) s
+43.8 673 M
+(    cand_weights = codebooks[codebook_index]  # [codebook_size, out_group_size, in_group_size]) s
+5 663 M
+(, all replacement codes) s
+16.8 653 M (511:) s
+16.8 643 M (512:) s
+43.8 643 M
+(    delta_weight_without_part = reference_weight - beam_weights) s
+16.8 633 M (513:) s
+43.8 633 M
+(    delta_weight_without_part[:, :, input_group_slice] += prev_weight_part) s
+16.8 623 M (514:) s
+16.8 613 M (515:) s
+43.8 613 M
+(    # dWTXTX is equivalent to < X @ \(W - \\sum BiCi except current codebook\), X @ SOMETHING >) s
+16.8 603 M (516:) s
+43.8 603 M
+(    dWTXTXg = delta_weight_without_part @ XTX[..., input_group_slice]  # [beam_size, out_featu) s
+5 593 M
+(res, in_group_size]) s
+16.8 583 M (517:) s
+43.8 583 M
+(    # below: use torch.matmul to compute broadcasted batch matrix multiplication; see matmul d) s
+5 573 M
+(ocs) s
+16.8 563 M (518:) s
+16.8 553 M (519:) s
+43.8 553 M
+(    XnewBkC_norms_sq = torch.bmm\() s
+16.8 543 M (520:) s
+43.8 543 M
+(        \(cand_weights.flatten\(0, 1\) @ XTX[input_group_slice, input_group_slice]\).view\() s
+16.8 533 M (521:) s
+43.8 533 M
+(            codebook_size, 1, out_group_size * in_group_size) s
+16.8 523 M (522:) s
+43.8 523 M
+(        \),) s
+16.8 513 M (523:) s
+43.8 513 M
+(        cand_weights.view\(codebook_size, out_group_size * in_group_size, 1\),) s
+16.8 503 M (524:) s
+43.8 503 M
+(    \).reshape\() s
+16.8 493 M (525:) s
+43.8 493 M
+(        codebook_size, 1) s
+16.8 483 M (526:) s
+43.8 483 M
+(    \)  # [codebook_size, num_out_groups]) s
+16.8 473 M (527:) s
+43.8 473 M
+(    if scales is not None:) s
+16.8 463 M (528:) s
+43.8 463 M
+(        XnewBkC_norms_sq = XnewBkC_norms_sq.mul\(scales_part.square\(\).reshape\(1, num_out_groups) s
+5 453 M
+(\)\)) s
+16.8 443 M (529:) s
+16.8 433 M (530:) s
+43.8 433 M
+(    best_losses = torch.empty\() s
+16.8 423 M (531:) s
+43.8 423 M
+(        \(beam_size, k_best, num_out_groups\), dtype=XTX.dtype, device=XTX.device) s
+16.8 413 M (532:) s
+43.8 413 M
+(    \)  # shape: [beam_size, k_best, num_out_groups]) s
+16.8 403 M (533:) s
+43.8 403 M
+(    best_indices = torch.empty\() s
+16.8 393 M (534:) s
+43.8 393 M
+(        \(beam_size, k_best, num_out_groups\),) s
+16.8 383 M (535:) s
+43.8 383 M
+(        dtype=torch.int64,) s
+16.8 373 M (536:) s
+43.8 373 M
+(        device=XTX.device,) s
+16.8 363 M (537:) s
+43.8 363 M
+(    \)) s
+16.8 353 M (538:) s
+43.8 353 M
+(    for beam_id in range\(beam_size\):) s
+16.8 343 M (539:) s
+43.8 343 M
+(        dot_products = \() s
+16.8 333 M (540:) s
+43.8 333 M
+(            torch.einsum\() s
+16.8 323 M (541:) s
+43.8 323 M
+(                "mg,og->mo",) s
+16.8 313 M (542:) s
+43.8 313 M
+(                cand_weights.reshape\(codebook_size, out_group_size * in_group_size\),) s
+16.8 303 M (543:) s
+43.8 303 M
+(                dWTXTXg[beam_id].view\(num_out_groups, out_group_size * in_group_size\),) s
+16.8 293 M (544:) s
+43.8 293 M
+(            \)) s
+16.8 283 M (545:) s
+43.8 283 M
+(            .sub_\() s
+16.8 273 M (546:) s
+43.8 273 M
+(                torch.einsum\() s
+16.8 263 M (547:) s
+43.8 263 M
+(                    "og,og->o",) s
+16.8 253 M (548:) s
+43.8 253 M
+(                    prev_part_dequantized[beam_id].reshape\(num_out_groups, out_group_size * in) s
+5 243 M
+(_group_size\),) s
+16.8 233 M (549:) s
+43.8 233 M
+(                    dWTXTXg[beam_id].view\(num_out_groups, out_group_size * in_group_size\),) s
+16.8 223 M (550:) s
+43.8 223 M
+(                \).view\(1, num_out_groups\)) s
+16.8 213 M (551:) s
+43.8 213 M
+(            \)) s
+16.8 203 M (552:) s
+43.8 203 M
+(            .view\(codebook_size, num_out_groups\)) s
+16.8 193 M (553:) s
+43.8 193 M
+(        \)) s
+16.8 183 M (554:) s
+43.8 183 M
+(        if scales is not None:) s
+16.8 173 M (555:) s
+43.8 173 M
+(            dot_products = dot_products.mul_\(scales_part.reshape\(1, num_out_groups\)\)) s
+16.8 163 M (556:) s
+16.8 153 M (557:) s
+43.8 153 M
+(        XoldBkC_norms_sq = torch.bmm\() s
+16.8 143 M (558:) s
+43.8 143 M
+(            \(prev_weight_part[beam_id] @ XTX[input_group_slice, input_group_slice]\).view\() s
+16.8 133 M (559:) s
+43.8 133 M
+(                num_out_groups, 1, out_group_size * in_group_size) s
+16.8 123 M (560:) s
+43.8 123 M
+(            \),) s
+16.8 113 M (561:) s
+43.8 113 M
+(            prev_weight_part[beam_id].view\(num_out_groups, out_group_size * in_group_size, 1\),) s
+16.8 103 M (562:) s
+43.8 103 M
+(        \).reshape\(1, num_out_groups\)) s
+16.8 93 M (563:) s
+16.8 83 M (564:) s
+43.8 83 M
+(        # finally, combine them to get MSE) s
+16.8 73 M (565:) s
+43.8 73 M
+(        candidate_squared_errors = \() s
+16.8 63 M (566:) s
+43.8 63 M
+(            beam_losses[beam_id, None, :] - 2 * dot_products + XnewBkC_norms_sq - XoldBkC_norm) s
+5 53 M
+(s_sq) s
+16.8 43 M (567:) s
+43.8 43 M
+(        \)  # shape: [codebook_size, num_out_groups]) s
+16.8 33 M (568:) s
+16.8 23 M (569:) s
+43.8 23 M
+(        if code_penalties is not None:) s
+16.8 13 M (570:) s
+43.8 13 M
+(            prev_code_penalties = code_penalties[codebook_index][prev_codes_part[beam_id]]  # ) s
+5 3 M
+([codebook_size]) s
+_R
+S
+%%Page: (10) 10
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 10 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (10) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (571:) s
+43.8 743 M
+(            candidate_squared_errors[:, :] -= prev_code_penalties[None, :]  # refund penalty f) s
+5 733 M
+(or the replaced code) s
+16.8 723 M (572:) s
+43.8 723 M
+(            candidate_squared_errors[:, :] += code_penalties[codebook_index, :, None]  # add p) s
+5 713 M
+(enalty for new code) s
+16.8 703 M (573:) s
+16.8 693 M (574:) s
+43.8 693 M
+(        best_beam_squared_errors, best_beam_indices = torch.topk\() s
+16.8 683 M (575:) s
+43.8 683 M
+(            candidate_squared_errors, k_best, dim=0, largest=False, sorted=False) s
+16.8 673 M (576:) s
+43.8 673 M
+(        \)) s
+16.8 663 M (577:) s
+43.8 663 M
+(        best_losses[beam_id] = best_beam_squared_errors) s
+16.8 653 M (578:) s
+43.8 653 M
+(        best_indices[beam_id] = best_beam_indices) s
+16.8 643 M (579:) s
+16.8 633 M (580:) s
+43.8 633 M
+(    return best_losses, best_indices) s
+16.8 623 M (581:) s
+16.8 613 M (582:) s
+16.8 603 M (583:) s
+43.8 603 M
+(@maybe_script) s
+16.8 593 M (584:) s
+43.8 593 M
+(def _beam_search_select_best\() s
+16.8 583 M (585:) s
+43.8 583 M
+(    beam_codes: torch.Tensor,) s
+16.8 573 M (586:) s
+43.8 573 M
+(    beam_weights: torch.Tensor,) s
+16.8 563 M (587:) s
+43.8 563 M
+(    codebooks: torch.Tensor,) s
+16.8 553 M (588:) s
+43.8 553 M
+(    scales: Optional[torch.Tensor],) s
+16.8 543 M (589:) s
+43.8 543 M
+(    input_group_index: int,) s
+16.8 533 M (590:) s
+43.8 533 M
+(    codebook_index: int,) s
+16.8 523 M (591:) s
+43.8 523 M
+(    best_losses: torch.Tensor,) s
+16.8 513 M (592:) s
+43.8 513 M
+(    best_indices: torch.Tensor,) s
+16.8 503 M (593:) s
+43.8 503 M
+(    beam_size: int,) s
+16.8 493 M (594:) s
+43.8 493 M
+(\) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:) s
+16.8 483 M (595:) s
+43.8 483 M
+(    """) s
+16.8 473 M (596:) s
+43.8 473 M
+(    Select top-:beam_size: and reorder beam accordingly, return new beam) s
+16.8 463 M (597:) s
+43.8 463 M
+(    :param beam_codes: a tensor with best weight codes, shape: [beam_size, num_out_groups, num) s
+5 453 M
+(_in_groups, num_codebooks]) s
+16.8 443 M (598:) s
+43.8 443 M
+(    :param beam_weights: a tensor with de-quantized beam_codes, shape: [beam_size, out_feature) s
+5 433 M
+(s, in_features]) s
+16.8 423 M (599:) s
+43.8 423 M
+(    :param codebooks: a tensor with look-up tables of codes, shape: [num_codebooks, codebook_s) s
+5 413 M
+(ize, out_group_size, in_group_size]) s
+16.8 403 M (600:) s
+43.8 403 M
+(    :param scales: weight will be multiplied by this factor, [num_out_groups, num_in_groups, 1) s
+5 393 M
+(, 1]) s
+16.8 383 M (601:) s
+16.8 373 M (602:) s
+43.8 373 M
+(    :param input_group_index: an index of one group of in_features that is being re-encoded) s
+16.8 363 M (603:) s
+43.8 363 M
+(    :param codebook_index: an index of one codebook for that group of features that is being r) s
+5 353 M
+(e-encoded) s
+16.8 343 M (604:) s
+43.8 343 M
+(    :param best_losses: a 3d tensor of losses of k_best lowest square errors for each beam and) s
+5 333 M
+( out group,) s
+16.8 323 M (605:) s
+43.8 323 M
+(        shape = [beam_size, k_best, num_out_groups]) s
+16.8 313 M (606:) s
+43.8 313 M
+(    :param best_indices: a 3d tensor of indices of k_best lowest square errors for each beam a) s
+5 303 M
+(nd out group,) s
+16.8 293 M (607:) s
+43.8 293 M
+(        shape = [beam_size, k_best, num_out_groups]) s
+16.8 283 M (608:) s
+43.8 283 M
+(    :param beam_size: how many top hypotheses should be selected) s
+16.8 273 M (609:) s
+16.8 263 M (610:) s
+43.8 263 M
+(    :returns: new \(beam_codes, beam_weights, beam_losses\)) s
+16.8 253 M (611:) s
+43.8 253 M
+(    """) s
+16.8 243 M (612:) s
+43.8 243 M
+(    dtype = best_losses.dtype) s
+16.8 233 M (613:) s
+43.8 233 M
+(    device = best_losses.device) s
+16.8 223 M (614:) s
+43.8 223 M
+(    _prev_beam_size, k_best, num_out_groups = best_losses.shape) s
+16.8 213 M (615:) s
+43.8 213 M
+(    _prev_beam_size, out_features, in_features = beam_weights.shape) s
+16.8 203 M (616:) s
+43.8 203 M
+(    _prev_beam_size, num_out_groups, num_in_groups, num_codebooks = beam_codes.shape) s
+16.8 193 M (617:) s
+43.8 193 M
+(    flat_best = best_losses.flatten\(0, 1\).topk\(dim=0, k=beam_size, largest=False\)) s
+16.8 183 M (618:) s
+43.8 183 M
+(    best_hypo_source_ids = flat_best.indices // k_best) s
+16.8 173 M (619:) s
+43.8 173 M
+(    arange_out_groups = torch.arange\(num_out_groups, device=device\)) s
+16.8 163 M (620:) s
+43.8 163 M
+(    best_hypo_codes = best_indices.flatten\(0, 1\)[flat_best.indices, arange_out_groups].reshape) s
+5 153 M
+(\() s
+16.8 143 M (621:) s
+43.8 143 M
+(        beam_size, num_out_groups) s
+16.8 133 M (622:) s
+43.8 133 M
+(    \)) s
+16.8 123 M (623:) s
+43.8 123 M
+(    # ^-- shape: [beam_size, num_out_groups]) s
+16.8 113 M (624:) s
+16.8 103 M (625:) s
+43.8 103 M
+(    # reorder beam codes and weights) s
+16.8 93 M (626:) s
+43.8 93 M
+(    new_beam_codes = torch.full\() s
+16.8 83 M (627:) s
+43.8 83 M
+(        size=\(len\(best_hypo_codes\), num_out_groups, num_in_groups, num_codebooks\),) s
+16.8 73 M (628:) s
+43.8 73 M
+(        fill_value=-1,) s
+16.8 63 M (629:) s
+43.8 63 M
+(        dtype=beam_codes.dtype,) s
+16.8 53 M (630:) s
+43.8 53 M
+(        device=device,) s
+16.8 43 M (631:) s
+43.8 43 M
+(    \)  # [beam_size, num_out_groups, num_in_groups, num_codebooks]) s
+16.8 33 M (632:) s
+43.8 33 M
+(    new_beam_weights = torch.empty\(len\(best_hypo_codes\), out_features, in_features, dtype=dtyp) s
+5 23 M
+(e, device=device\)) s
+16.8 13 M (633:) s
+16.8 3 M (634:) s
+43.8 3 M
+(    for beam_index in range\(len\(best_hypo_codes\)\):) s
+_R
+S
+%%Page: (11) 11
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 11 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (11) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (635:) s
+43.8 743 M
+(        new_beam_codes[beam_index, :, ...] = beam_codes[best_hypo_source_ids[beam_index, :], a) s
+5 733 M
+(range_out_groups, ...]) s
+16.8 723 M (636:) s
+43.8 723 M
+(        new_beam_codes[beam_index, :, input_group_index, codebook_index] = best_hypo_codes[bea) s
+5 713 M
+(m_index, :]) s
+16.8 703 M (637:) s
+43.8 703 M
+(        new_beam_weights[beam_index, :, :] = _dequantize_weight\(new_beam_codes[beam_index, ...) s
+5 693 M
+(], codebooks, scales\)) s
+16.8 683 M (638:) s
+16.8 673 M (639:) s
+43.8 673 M
+(    # Note: the code above can be further accelerated by 1\) vectorzing loop and ...) s
+16.8 663 M (640:) s
+43.8 663 M
+(    # ... 2\) updating new_beam_weights only for the chosen input group) s
+16.8 653 M (641:) s
+43.8 653 M
+(    return new_beam_codes, new_beam_weights, flat_best.values) s
+16.8 643 M (642:) s
+16.8 633 M (643:) s
+16.8 623 M (644:) s
+43.8 623 M
+(@maybe_script) s
+16.8 613 M (645:) s
+43.8 613 M
+(def _channelwise_squared_error\(XTX: torch.Tensor, weight: torch.Tensor, reference_weight: torc) s
+5 603 M
+(h.Tensor\):) s
+16.8 593 M (646:) s
+43.8 593 M
+(    """) s
+16.8 583 M (647:) s
+43.8 583 M
+(    Compute per-channel squared error between X @ weight_or_weights and X @ reference_weight) s
+16.8 573 M (648:) s
+43.8 573 M
+(    :param XTX: pairwise products of input features matmul\(X.transpose\(\), X\), shape: [in_featu) s
+5 563 M
+(res, in_features]) s
+16.8 553 M (649:) s
+43.8 553 M
+(    :note: if XTX is divided by dataset size, this function will return *mean* squared error) s
+16.8 543 M (650:) s
+43.8 543 M
+(    :param weight: predicted/reconstructed weights of shape [*dims, out_features, in_features]) s
+16.8 533 M (651:) s
+43.8 533 M
+(    :param reference_weight: reference weight of shape [out_features, in_features]) s
+16.8 523 M (652:) s
+43.8 523 M
+(    :return: per-channel squared errors of shape [*dims, out_features]) s
+16.8 513 M (653:) s
+43.8 513 M
+(    """) s
+16.8 503 M (654:) s
+43.8 503 M
+(    XW_norm_square = torch.matmul\(weight[..., :, None, :], \(weight @ XTX\)[..., :, :, None]\).fl) s
+5 493 M
+(atten\(-3\)) s
+16.8 483 M (655:) s
+43.8 483 M
+(    XWreference_norm_square = torch.bmm\(reference_weight[:, None, :], \(reference_weight @ XTX\)) s
+5 473 M
+([:, :, None]\).flatten\(-3\)) s
+16.8 463 M (656:) s
+43.8 463 M
+(    dot_product = torch.matmul\(\(reference_weight @ XTX\)[:, None, :], weight[..., :, :, None]\).) s
+5 453 M
+(flatten\(-3\)) s
+16.8 443 M (657:) s
+43.8 443 M
+(    return XW_norm_square - 2 * dot_product + XWreference_norm_square) s
+16.8 433 M (658:) s
+16.8 423 M (659:) s
+16.8 413 M (660:) s
+43.8 413 M
+(@torch.no_grad\(\)) s
+16.8 403 M (661:) s
+43.8 403 M
+(def init_aq_kmeans\() s
+16.8 393 M (662:) s
+43.8 393 M
+(    reference_weight: torch.Tensor,) s
+16.8 383 M (663:) s
+43.8 383 M
+(    *,) s
+16.8 373 M (664:) s
+43.8 373 M
+(    num_codebooks: int,) s
+16.8 363 M (665:) s
+43.8 363 M
+(    out_group_size: int,) s
+16.8 353 M (666:) s
+43.8 353 M
+(    in_group_size: int,) s
+16.8 343 M (667:) s
+43.8 343 M
+(    codebook_size: int,) s
+16.8 333 M (668:) s
+43.8 333 M
+(    verbose: bool = False,) s
+16.8 323 M (669:) s
+43.8 323 M
+(    use_faiss: bool = False,) s
+16.8 313 M (670:) s
+43.8 313 M
+(    max_points_per_centroid: Optional[int] = None,) s
+16.8 303 M (671:) s
+43.8 303 M
+(    max_iter: int = 1000,) s
+16.8 293 M (672:) s
+43.8 293 M
+(    devices: Optional[List[torch.device]] = None,) s
+16.8 283 M (673:) s
+43.8 283 M
+(    **kwargs,) s
+16.8 273 M (674:) s
+43.8 273 M
+(\):) s
+16.8 263 M (675:) s
+43.8 263 M
+(    """) s
+16.8 253 M (676:) s
+43.8 253 M
+(    Create initial codes and codebooks using residual K-means clustering of weights) s
+16.8 243 M (677:) s
+43.8 243 M
+(    :params reference_weight, num_codebooks, out_group_size, in_group_size, nbits, verbose: sa) s
+5 233 M
+(me as in QuantizedWeight) s
+16.8 223 M (678:) s
+43.8 223 M
+(    :params use_faiss  whether to use faiss implementation of kmeans or pure torch) s
+16.8 213 M (679:) s
+43.8 213 M
+(    :params max_point_per_centorid maximum data point per cluster) s
+16.8 203 M (680:) s
+43.8 203 M
+(    :param kwargs: any additional params are forwarded to fit_kmeans) s
+16.8 193 M (681:) s
+43.8 193 M
+(    """) s
+16.8 183 M (682:) s
+43.8 183 M
+(    out_features, in_features = reference_weight.shape) s
+16.8 173 M (683:) s
+43.8 173 M
+(    num_out_groups = out_features // out_group_size) s
+16.8 163 M (684:) s
+43.8 163 M
+(    num_in_groups = in_features // in_group_size) s
+16.8 153 M (685:) s
+43.8 153 M
+(    weight_residue = \() s
+16.8 143 M (686:) s
+43.8 143 M
+(        reference_weight.reshape\(num_out_groups, out_group_size, num_in_groups, in_group_size\)) s
+16.8 133 M (687:) s
+43.8 133 M
+(        .clone\(\)) s
+16.8 123 M (688:) s
+43.8 123 M
+(        .swapaxes\(-3, -2\)) s
+16.8 113 M (689:) s
+43.8 113 M
+(        .reshape\(num_out_groups * num_in_groups, out_group_size * in_group_size\)) s
+16.8 103 M (690:) s
+43.8 103 M
+(    \)) s
+16.8 93 M (691:) s
+43.8 93 M
+(    codebooks = []) s
+16.8 83 M (692:) s
+43.8 83 M
+(    codes = []) s
+16.8 73 M (693:) s
+16.8 63 M (694:) s
+43.8 63 M
+(    if max_points_per_centroid is not None:) s
+16.8 53 M (695:) s
+43.8 53 M
+(        print\("Clustering:", max_points_per_centroid * codebook_size, "points from", weight_re) s
+5 43 M
+(sidue.shape[0]\)) s
+16.8 33 M (696:) s
+16.8 23 M (697:) s
+43.8 23 M
+(    for _ in trange\(num_codebooks, desc="initializing with kmeans"\) if verbose else range\(num_) s
+5 13 M
+(codebooks\):) s
+16.8 3 M (698:) s
+43.8 3 M
+(        if use_faiss:) s
+_R
+S
+%%Page: (12) 12
+%%BeginPageSetup
+_S
+18 36 translate
+/pagenum 12 def
+/fname (aq.py) def
+/fdir (.) def
+/ftail (aq.py) def
+% User defined strings:
+/fmodstr (Fri Mar 22 16:01:31 2024) def
+/pagenumstr (12) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+do_header
+16.8 743 M (699:) s
+43.8 743 M
+(            codebook_i, codes_i, reconstructed_weight_i = fit_faiss_kmeans\() s
+16.8 733 M (700:) s
+43.8 733 M
+(                weight_residue,) s
+16.8 723 M (701:) s
+43.8 723 M
+(                k=codebook_size,) s
+16.8 713 M (702:) s
+43.8 713 M
+(                max_iter=max_iter,) s
+16.8 703 M (703:) s
+43.8 703 M
+(                gpu=\(weight_residue.device.type == "cuda"\),) s
+16.8 693 M (704:) s
+43.8 693 M
+(                max_points_per_centroid=max_points_per_centroid,) s
+16.8 683 M (705:) s
+43.8 683 M
+(            \)) s
+16.8 673 M (706:) s
+43.8 673 M
+(        else:) s
+16.8 663 M (707:) s
+43.8 663 M
+(            chosen_ids = None) s
+16.8 653 M (708:) s
+43.8 653 M
+(            if max_points_per_centroid is not None:) s
+16.8 643 M (709:) s
+43.8 643 M
+(                chosen_ids = torch.randperm\(weight_residue.shape[0], device=weight_residue.dev) s
+5 633 M
+(ice\)[) s
+16.8 623 M (710:) s
+43.8 623 M
+(                    : max_points_per_centroid * codebook_size) s
+16.8 613 M (711:) s
+43.8 613 M
+(                ]) s
+16.8 603 M (712:) s
+43.8 603 M
+(            codebook_i, _, _ = fit_kmeans\() s
+16.8 593 M (713:) s
+43.8 593 M
+(                weight_residue if chosen_ids is None else weight_residue[chosen_ids, :],) s
+16.8 583 M (714:) s
+43.8 583 M
+(                k=codebook_size,) s
+16.8 573 M (715:) s
+43.8 573 M
+(                max_iter=max_iter,) s
+16.8 563 M (716:) s
+43.8 563 M
+(                devices=devices,) s
+16.8 553 M (717:) s
+43.8 553 M
+(                **kwargs,) s
+16.8 543 M (718:) s
+43.8 543 M
+(            \)) s
+16.8 533 M (719:) s
+43.8 533 M
+(            codes_i, reconstructed_weight_i = find_nearest_cluster\(weight_residue, codebook_i,) s
+5 523 M
+( devices=devices\)) s
+16.8 513 M (720:) s
+16.8 503 M (721:) s
+43.8 503 M
+(        codes_i = codes_i.reshape\(num_out_groups, num_in_groups, 1\)) s
+16.8 493 M (722:) s
+43.8 493 M
+(        codebook_i = codebook_i.reshape\(1, codebook_size, out_group_size, in_group_size\)) s
+16.8 483 M (723:) s
+43.8 483 M
+(        weight_residue -= reconstructed_weight_i) s
+16.8 473 M (724:) s
+43.8 473 M
+(        codes.append\(codes_i\)) s
+16.8 463 M (725:) s
+43.8 463 M
+(        codebooks.append\(codebook_i\)) s
+16.8 453 M (726:) s
+43.8 453 M
+(        del reconstructed_weight_i) s
+16.8 443 M (727:) s
+43.8 443 M
+(    codebooks = torch.cat\(codebooks, dim=0\)) s
+16.8 433 M (728:) s
+43.8 433 M
+(    codes = torch.cat\(codes, dim=-1\)) s
+16.8 423 M (729:) s
+43.8 423 M
+(    return codes, codebooks) s
+_R
+S
+%%Trailer
+%%Pages: 12
+%%DocumentNeededResources: font Courier-Bold Courier 
+%%EOF
