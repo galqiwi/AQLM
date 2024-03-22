@@ -11,6 +11,27 @@ from src.kmeans import find_nearest_cluster, fit_faiss_kmeans, fit_kmeans, fit_k
 from src.utils import ellipsis, maybe_script
 
 
+def reduced_rank_regression_from_weight(
+        XTX: torch.Tensor, W: torch.Tensor, rank: int, *, svd_niter: Optional[int] = 100,
+):
+    assert XTX.ndim == 2 and XTX.shape[0] == XTX.shape[1], "XTX must be [in_features, in_features]"
+    assert W.ndim == 2 and W.shape[1] == XTX.shape[1]
+    assert rank <= min(W.shape[0], W.shape[1]), "rank must be less than num features / outputs"
+    (out_features, in_features) = W.shape
+
+    A = torch.linalg.multi_dot((W, XTX, W.T))
+
+    if svd_niter is not None:
+        _, _, V = torch.svd_lowrank(A, q=rank, niter=svd_niter)
+    else:
+        _, _, VT = torch.linalg.svd(A)
+        V = VT[:rank, :].T.contiguous()
+        del VT
+
+    U = torch.linalg.multi_dot((W.T, V))
+    return U, V
+
+
 class QuantizedLinear(nn.Module):
     def __init__(self, quantized_weight, bias: Optional[nn.Parameter]):
         super().__init__()
@@ -99,6 +120,15 @@ class QuantizedWeight(nn.Module):
         )  # [num_codebooks, codebook_size, out_group_size, in_group_size]
         self.codes = nn.Parameter(codes, requires_grad=False)  #  [num_out_groups, num_in_groups, num_codebooks]
 
+        self.rrr_v = nn.Parameter(
+            torch.zeros((self.out_features, 10), dtype=torch.float32, device=reference_weight.device),
+            requires_grad=True,
+        )
+        self.rrr_ut = nn.Parameter(
+            torch.zeros((10, self.in_features), dtype=torch.float32, device=reference_weight.device),
+            requires_grad=True,
+        )
+
     def get_codebooks(self) -> torch.Tensor:
         """Get quantization codebooks or reconstruct them from second level quantization (see codebook_values_nbits)"""
         if self.codebook_value_nbits >= 16:
@@ -163,7 +193,26 @@ class QuantizedWeight(nn.Module):
 
         """
         weight = _dequantize_weight(self.codes[selection], self.get_codebooks(), self.get_scales()[selection])
-        return weight
+        
+        return weight + self.rrr_ut @ self.rrr_ut
+
+    @torch.no_grad()
+    def update_outliers(
+        self,
+        reference_weight: torch.Tensor,
+        XTX: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        TODO(galqiwi): description
+        """
+        weight = _dequantize_weight(self.codes, self.get_codebooks(), self.get_scales())
+
+        u, v = reduced_rank_regression_from_weight(XTX=XTX, W=reference_weight-weight, rank=10)
+        self.rrr_v[...] = v
+        self.rrr_ut[...] = u.T
+
+        return self.rrr_v, self.rrr_ut
+
 
     @torch.no_grad()
     def beam_search_update_codes_(
@@ -190,7 +239,7 @@ class QuantizedWeight(nn.Module):
         """
         self.codes[selection] = beam_search_optimal_codes(
             XTX=XTX,
-            reference_weight=reference_weight,
+            reference_weight=reference_weight - self.rrr_ut @ self.rrr_ut,
             codebooks=self.get_codebooks(),
             prev_codes=self.codes[selection],
             scales=self.get_scales()[selection],
