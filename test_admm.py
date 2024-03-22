@@ -208,7 +208,7 @@ def custom_galqiwi_mask_2(target: torch.Tensor, XTX: torch.Tensor, sparsity: flo
 def plot_alpha(target_name: str):
     target_base = get_tensor(target_name)
 
-    alphas = np.linspace(-0.2, 0.2, 15)
+    alphas = np.linspace(0, 0.2, 10)
     losses = []
     for alpha in alphas:
         def mask_rule(target, XTX, sparsity):
@@ -370,8 +370,8 @@ def test(target_name: str = 'LLAMA2_TARGET_BASE.pt', is_iterative: bool = False)
 def main():
     targets = [
         'LLAMA2_TARGET_BASE.pt',
-        # 'LLAMA2_DIFF_BASE.pt',
-        # 'LLAMA2_DIFF_TUNED.pt',
+        'LLAMA2_DIFF_BASE.pt',
+        'LLAMA2_DIFF_TUNED.pt',
     ]
 
     for target in targets:
