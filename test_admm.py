@@ -205,21 +205,20 @@ def custom_galqiwi_mask_2(target: torch.Tensor, XTX: torch.Tensor, sparsity: flo
     return mask
 
 
-
-def plot_rho(target_name: str):
+def plot_alpha(target_name: str):
     target_base = get_tensor(target_name)
 
-    percdamps = np.linspace(-0.2, 0.2, 15)
+    alphas = np.linspace(-0.2, 0.2, 15)
     losses = []
-    for percdamp in percdamps:
+    for alpha in alphas:
         def mask_rule(target, XTX, sparsity):
-            return custom_galqiwi_mask_2(target, XTX, sparsity, alpha=percdamp)
-        outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, mask_rule=mask_rule, is_iterative='base_iter')
+            return custom_galqiwi_mask_2(target, XTX, sparsity, alpha=alpha)
+        outliers = custom_admm(target=target_base, XTX=get_XTX(), sparsity=0.99, mask_rule=mask_rule, is_iterative=True)
         loss = get_loss(delta_weight=target_base - outliers, XTX=get_XTX()).item()
-        print(percdamp, loss)
+        print(alpha, loss)
         losses.append(loss)
 
-    plt.plot(percdamps, losses)
+    plt.plot(alphas, losses)
     Path("./output").mkdir(parents=True, exist_ok=True)
     plt.savefig(os.path.join('./output', f'{target_name}.png'))
     plt.clf()
@@ -377,7 +376,7 @@ def main():
 
     for target in targets:
         print(target)
-        plot_rho(target)
+        plot_alpha(target)
 
     # results = []
     # for target, is_iterative in list(itertools.product(targets, ('base_iter',))):
