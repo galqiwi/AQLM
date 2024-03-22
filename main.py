@@ -690,9 +690,9 @@ if __name__ == "__main__":
         help="TODO: (galqiwi)",
     )
     parser.add_argument(
-        "--outliers_percentile",
-        type=float,
-        default=1.0,
+        "--lora_rank",
+        type=int,
+        default=10,
         help="TODO: (galqiwi)",
     )
     parser.add_argument(
@@ -731,7 +731,7 @@ if __name__ == "__main__":
         assert has_wandb, "`wandb` not installed, try pip install `wandb`"
         args.exp_name = (
             os.environ.get("WANDB_NAME", "AQ")
-            + f"_outliers_percentile_{args.outliers_percentile}"
+            + f"_lora_rank{args.lora_rank}"
             + f"_outliers_update_period_{args.outliers_update_period}"
             + f"_n_outliers_admm_iterations_{args.n_outliers_admm_iterations}"
             + f"_num_codebooks_{args.num_codebooks}"

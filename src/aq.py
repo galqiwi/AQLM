@@ -63,6 +63,7 @@ class QuantizedWeight(nn.Module):
         codebook_value_num_groups: int = 1,
         scale_nbits: int = 0,
         straight_through_gradient: Optional[bool] = None,
+        lora_rank: int = 10,
         **init_kwargs,
     ):
         super().__init__()
@@ -124,11 +125,11 @@ class QuantizedWeight(nn.Module):
         self.codes = nn.Parameter(codes, requires_grad=False)  #  [num_out_groups, num_in_groups, num_codebooks]
 
         self.rrr_v = nn.Parameter(
-            torch.zeros((self.out_features, 10), dtype=torch.float32, device=reference_weight.device),
+            torch.zeros((self.out_features, lora_rank), dtype=torch.float32, device=reference_weight.device),
             requires_grad=True,
         )
         self.rrr_ut = nn.Parameter(
-            torch.zeros((10, self.in_features), dtype=torch.float32, device=reference_weight.device),
+            torch.zeros((lora_rank, self.in_features), dtype=torch.float32, device=reference_weight.device),
             requires_grad=True,
         )
 
