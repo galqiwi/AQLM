@@ -357,38 +357,22 @@ class AQEngine(nn.Module):
         outliers_percentile: float,
     ):
         begin = time.perf_counter()
-        """Update self.quantized_weight.codes in-place via beam search"""
+        dtype = self.quantized_weight.codebooks.dtype
+        rrr_v, rrr_ut = self.quantized_weight.update_outliers(
+            reference_weight=self.layer.weight.detach().to(dtype),
+            XTX=self.XTX,
+        )
+
         if len(devices) == 1:  # single device
-            dtype = self.quantized_weight.codebooks.dtype
             assert replicas is None
-
-            self.setup_outliers_optimizer(outliers_percentile)
-
-            self.quantized_weight.update_outliers(
-                reference_weight=self.layer.weight.detach().to(dtype),
-                outliers_optimizer=self.outliers_optimizer,
-            )
             return
 
-        assert replicas[0] is self
-        replicated_parameters = torch.nn.parallel.replicate(parameters_to_replicate, devices)
-        num_output_groups = self.quantized_weight.out_features // self.quantized_weight.out_group_size
-        shard_size = (num_output_groups - 1) // len(devices) + 1
-        active_slices_by_replica = [
-            slice(i * shard_size, min((i + 1) * shard_size, num_output_groups)) for i in range(len(devices))
-        ]
+        for device, replica in zip(devices[1:], replicas[1:]):
+            replica.quantized_weight.rrr_v[...] = rrr_v.to(device)
+            replica.quantized_weight.rrr_ut[...] = rrr_ut.to(device)
 
-        funcs_by_replica = [replica._replace_and_update_outliers for replica in replicas]
-        inputs_by_replica = [(dict(), active_slices_by_replica[0])]
-        for i in range(1, len(devices)):
-            inputs_by_replica.append((replicated_parameters[i], active_slices_by_replica[i]))
-        kwargs_by_replica = [dict(outliers_percentile=outliers_percentile) for _ in range(len(devices))]
-        new_outliers_by_replica = torch.nn.parallel.parallel_apply(
-            funcs_by_replica, inputs_by_replica, kwargs_by_replica, devices=devices
-        )
-        # gather all code parts and assign them to each replica
-        for device, replica in zip(devices, replicas):
-            replica.quantized_weight.outliers[...] = Gather.apply(device, 0, *new_outliers_by_replica)
+        torch.cuda.synchronize()
+
         print(time.perf_counter() - begin)
 
 
