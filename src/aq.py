@@ -14,6 +14,9 @@ from src.utils import ellipsis, maybe_script
 def reduced_rank_regression_from_weight(
         XTX: torch.Tensor, W: torch.Tensor, rank: int, *, svd_niter: Optional[int] = 100,
 ):
+    dtype = W.dtype
+    XTX = XTX.double()
+    W = W.double()
     assert XTX.ndim == 2 and XTX.shape[0] == XTX.shape[1], "XTX must be [in_features, in_features]"
     assert W.ndim == 2 and W.shape[1] == XTX.shape[1]
     assert rank <= min(W.shape[0], W.shape[1]), "rank must be less than num features / outputs"
@@ -29,7 +32,7 @@ def reduced_rank_regression_from_weight(
         del VT
 
     U = torch.linalg.multi_dot((W.T, V))
-    return U, V
+    return U.to(dtype), V.to(dtype)
 
 
 class QuantizedLinear(nn.Module):
