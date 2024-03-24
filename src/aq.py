@@ -63,7 +63,7 @@ class QuantizedWeight(nn.Module):
         codebook_value_num_groups: int = 1,
         scale_nbits: int = 0,
         straight_through_gradient: Optional[bool] = None,
-        lora_rank: int = 10,
+        lora_percentile: float = 1.0,
         **init_kwargs,
     ):
         super().__init__()
@@ -124,12 +124,20 @@ class QuantizedWeight(nn.Module):
         )  # [num_codebooks, codebook_size, out_group_size, in_group_size]
         self.codes = nn.Parameter(codes, requires_grad=False)  #  [num_out_groups, num_in_groups, num_codebooks]
 
+        self.lora_rank = int(round(
+            lora_percentile * (self.in_features * self.out_features) / (self.in_features + self.out_features)
+        ))
+
+        self.lora_rank = min(self.lora_rank, self.out_features)
+        self.lora_rank = min(self.lora_rank, self.in_features)
+        self.lora_rank = max(self.lora_rank, 1)
+
         self.rrr_v = nn.Parameter(
-            torch.zeros((self.out_features, lora_rank), dtype=torch.float32, device=reference_weight.device),
+            torch.zeros((self.out_features, self.lora_rank), dtype=torch.float32, device=reference_weight.device),
             requires_grad=True,
         )
         self.rrr_ut = nn.Parameter(
-            torch.zeros((lora_rank, self.in_features), dtype=torch.float32, device=reference_weight.device),
+            torch.zeros((self.lora_rank, self.in_features), dtype=torch.float32, device=reference_weight.device),
             requires_grad=True,
         )
 
@@ -211,7 +219,7 @@ class QuantizedWeight(nn.Module):
         """
         weight = _dequantize_weight(self.codes, self.get_codebooks(), self.get_scales())
 
-        u, v = reduced_rank_regression_from_weight(XTX=XTX, W=reference_weight-weight, rank=10)
+        u, v = reduced_rank_regression_from_weight(XTX=XTX, W=reference_weight-weight, rank=self.lora_rank)
         self.rrr_v[...] = v
         self.rrr_ut[...] = u.T
 

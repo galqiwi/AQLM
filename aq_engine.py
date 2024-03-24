@@ -61,7 +61,7 @@ class AQEngine(nn.Module):
             max_points_per_centroid=args.init_max_points_per_centroid,
             devices=args.devices,
             verbose=True,
-            lora_rank=args.lora_rank,
+            lora_percentile=args.lora_percentile,
         )
 
         differentiable_parameters = nn.ParameterDict(
@@ -105,7 +105,6 @@ class AQEngine(nn.Module):
                         args.devices,
                         replicas,
                         differentiable_parameters,
-                        lora_rank=args.lora_rank,
                     )
 
             # search for better codes (cluster indices)
@@ -225,7 +224,6 @@ class AQEngine(nn.Module):
         devices: Sequence[torch.device],
         replicas: Sequence[AQEngine],
         parameters_to_replicate: nn.ParameterDict,
-        lora_rank: int,
     ):
         begin = time.perf_counter()
         dtype = self.quantized_weight.codebooks.dtype
