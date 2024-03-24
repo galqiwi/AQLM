@@ -132,6 +132,8 @@ class QuantizedWeight(nn.Module):
         self.lora_rank = min(self.lora_rank, self.in_features)
         self.lora_rank = max(self.lora_rank, 1)
 
+        print(f'{self.lora_rank=} {self.out_features=} {self.in_features=}')
+
         self.rrr_v = nn.Parameter(
             torch.zeros((self.out_features, self.lora_rank), dtype=torch.float32, device=reference_weight.device),
             requires_grad=True,
