@@ -125,7 +125,7 @@ class QuantizedWeight(nn.Module):
         self.codes = nn.Parameter(codes, requires_grad=False)  #  [num_out_groups, num_in_groups, num_codebooks]
 
         self.lora_rank = int(round(
-            lora_percentile * (self.in_features * self.out_features) / (self.in_features + self.out_features)
+            lora_percentile / 100 * (self.in_features * self.out_features) / (self.in_features + self.out_features)
         ))
 
         self.lora_rank = min(self.lora_rank, self.out_features)
