@@ -773,6 +773,24 @@ if __name__ == "__main__":
         help="Num validation sequences",
     )
     parser.add_argument(
+        "--n_outliers_admm_iterations",
+        type=int,
+        default=20,
+        help="TODO: (galqiwi)",
+    )
+    parser.add_argument(
+        "--lora_percentile",
+        type=float,
+        default=1.0,
+        help="TODO: (galqiwi)",
+    )
+    parser.add_argument(
+        "--outliers_update_period",
+        type=int,
+        default=10,
+        help="TODO: (galqiwi)",
+    )
+    parser.add_argument(
         "--print_frequency",
         type=int,
         default=10,
@@ -812,20 +830,17 @@ if __name__ == "__main__":
         assert has_wandb, "`wandb` not installed, try pip install `wandb`"
         args.exp_name = (
             os.environ.get("WANDB_NAME", "AQ")
+            + f"_lora_percentile_{args.lora_percentile}"
+            + f"_outliers_update_period_{args.outliers_update_period}"
+            + f"_n_outliers_admm_iterations_{args.n_outliers_admm_iterations}"
             + f"_num_codebooks_{args.num_codebooks}"
-            + f"_out_group_size_{args.out_group_size}"
-            + f"_in_group_size_{args.in_group_size}"
             + f"_nbits_per_codebook_{args.nbits_per_codebook}"
-            + f"_codebook_value_nbits_{args.codebook_value_nbits}"
-            + f"_codebook_value_num_groups_{args.codebook_value_num_groups}"
-            + f"_scale_nbits_{args.scale_nbits}"
-            + f"_steps_per_epoch_{args.steps_per_epoch}"
-            + f"_init_max_iter{args.init_max_iter}"
             + f"_{len(args.devices)}gpus"
         )
         args.group_size = args.in_group_size * args.out_group_size
 
         wandb.init(
+            name=args.exp_name,
             config={a: getattr(args, a) for a in dir(args) if not a.startswith("_")},
         )
 

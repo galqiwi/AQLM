@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+import time
 from argparse import Namespace
 from typing import Optional, Sequence, Union
 
@@ -60,6 +61,7 @@ class AQEngine(nn.Module):
             max_points_per_centroid=args.init_max_points_per_centroid,
             devices=args.devices,
             verbose=True,
+            lora_percentile=args.lora_percentile,
         )
 
         differentiable_parameters = nn.ParameterDict(
@@ -93,6 +95,17 @@ class AQEngine(nn.Module):
                 opt.step()
                 if verbose and (epoch * args.steps_per_epoch + step) % args.print_frequency == 0:
                     print(f"epoch={epoch}\tstep={step}\tloss={loss.item():.10f}\t")
+
+                assert (
+                    args.steps_per_epoch % args.outliers_update_period == 0,
+                    'steps_per_epoch should be divisible by outliers_update_period',
+                )
+                if (step + 1) % args.outliers_update_period == 0:
+                    self.update_outliers(
+                        args.devices,
+                        replicas,
+                        differentiable_parameters,
+                    )
 
             # search for better codes (cluster indices)
             seed = random.getrandbits(256)
@@ -204,6 +217,32 @@ class AQEngine(nn.Module):
             # gather all code parts and assign them to each replica
             for device, replica in zip(devices, replicas):
                 replica.quantized_weight.codes[...] = Gather.apply(device, 0, *new_code_parts_by_replica)
+
+    @torch.no_grad()
+    def update_outliers(
+        self,
+        devices: Sequence[torch.device],
+        replicas: Sequence[AQEngine],
+        parameters_to_replicate: nn.ParameterDict,
+    ):
+        begin = time.perf_counter()
+        dtype = self.quantized_weight.codebooks.dtype
+        rrr_v, rrr_ut = self.quantized_weight.update_outliers(
+            reference_weight=self.layer.weight.detach().to(dtype),
+            XTX=self.XTX,
+        )
+
+        if len(devices) == 1:  # single device
+            assert replicas is None
+            return
+
+        for device, replica in zip(devices[1:], replicas[1:]):
+            replica.quantized_weight.rrr_v[...] = rrr_v.to(device)
+            replica.quantized_weight.rrr_ut[...] = rrr_ut.to(device)
+
+        torch.cuda.synchronize()
+
+        print(time.perf_counter() - begin)
 
 
 def replace_parameter_(module: nn.Module, name: str, new_value: torch.Tensor):
