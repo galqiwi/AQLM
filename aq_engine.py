@@ -75,6 +75,14 @@ class AQEngine(nn.Module):
             replicas[0] = self
 
         previous_best_loss = float("inf")  # for early stopping
+
+        if args.lora_first:
+            self.update_outliers(
+                args.devices,
+                replicas,
+                differentiable_parameters,
+            )
+
         for epoch in range(args.max_epochs):
             # train codebooks and scales
             for step in range(args.steps_per_epoch):

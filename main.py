@@ -707,6 +707,11 @@ if __name__ == "__main__":
         default=10,
         help="Print Adam progress after each print_frequency updates",
     )
+    parser.add_argument(
+        "--lora_first",
+        action="store_true",
+        help="TODO: (galqiwi)",
+    )
     parser.add_argument("--wandb", action="store_true", help="Whether to use wandb or store locally.")
     parser.add_argument(
         "--no_quant",
