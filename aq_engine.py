@@ -81,6 +81,7 @@ class AQEngine(nn.Module):
                 args.devices,
                 replicas,
                 differentiable_parameters,
+                subtract_weight=False,
             )
 
         for epoch in range(args.max_epochs):
@@ -113,6 +114,7 @@ class AQEngine(nn.Module):
                         args.devices,
                         replicas,
                         differentiable_parameters,
+                        subtract_weight=True,
                     )
 
             # search for better codes (cluster indices)
@@ -232,12 +234,14 @@ class AQEngine(nn.Module):
         devices: Sequence[torch.device],
         replicas: Sequence[AQEngine],
         parameters_to_replicate: nn.ParameterDict,
+        subtract_weight: bool = True,
     ):
         begin = time.perf_counter()
         dtype = self.quantized_weight.codebooks.dtype
         rrr_v, rrr_ut = self.quantized_weight.update_outliers(
             reference_weight=self.layer.weight.detach().to(dtype),
             XTX=self.XTX,
+            subtract_weight=subtract_weight,
         )
 
         if len(devices) == 1:  # single device

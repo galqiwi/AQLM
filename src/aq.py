@@ -215,13 +215,17 @@ class QuantizedWeight(nn.Module):
         self,
         reference_weight: torch.Tensor,
         XTX: torch.Tensor,
+        subtract_weight: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         TODO(galqiwi): description
         """
-        weight = _dequantize_weight(self.codes, self.get_codebooks(), self.get_scales())
+        if subtract_weight:
+            weight = _dequantize_weight(self.codes, self.get_codebooks(), self.get_scales())
+            u, v = reduced_rank_regression_from_weight(XTX=XTX, W=reference_weight-weight, rank=self.lora_rank)
+        else:
+            u, v = reduced_rank_regression_from_weight(XTX=XTX, W=reference_weight, rank=self.lora_rank)
 
-        u, v = reduced_rank_regression_from_weight(XTX=XTX, W=reference_weight-weight, rank=self.lora_rank)
         self.rrr_v[...] = v
         self.rrr_ut[...] = u.T
 
