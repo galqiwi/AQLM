@@ -165,11 +165,11 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
     layers = get_layers(model)
     for layer_index in range(len(layers)):
         if layer_index < len(layers) // 2:
-            args.nbits_per_codebook = 12
-            args.num_codebooks = 2
-        else:
             args.nbits_per_codebook = 15
             args.num_codebooks = 1
+        else:
+            args.nbits_per_codebook = 12
+            args.num_codebooks = 2
 
         print(f"\n---------------- Layer {layer_index} of {len(layers)} ----------------")
         stats_payload = {}
