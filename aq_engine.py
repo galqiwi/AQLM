@@ -171,7 +171,10 @@ class AQEngine(nn.Module):
         mse_components = torch.nn.parallel.parallel_apply(funcs_by_replica, inputs_by_replica, devices=devices)
         return Gather.apply(devices[0], 0, *(mse.view(1) for mse in mse_components)).sum()
 
-    def _replace_and_beam_search(self, params_to_replace: nn.ParameterDict, selection: slice, **kwargs) -> torch.Tensor:
+    def _replace_and_beam_search(
+        self, params_to_replace: nn.ParameterDict, selection: slice,
+        code_penalties: Optional[torch.Tensor], **kwargs,
+    ) -> torch.Tensor:
         """Utility for parallelism: replace the specified parameters of self.quantized_weight, then run beam search"""
         dtype = self.quantized_weight.codebooks.dtype
         for param_name, param_value in params_to_replace.items():
@@ -182,7 +185,7 @@ class AQEngine(nn.Module):
         )
         reference_weight = self.layer.weight.detach()[out_channel_selection].to(dtype)
         return self.quantized_weight.beam_search_update_codes_(
-            self.XTX.to(dtype), reference_weight, selection=selection, **kwargs
+            self.XTX.to(dtype), reference_weight, selection=selection, code_penalties=code_penalties, **kwargs
         ).clone()
 
     @torch.no_grad()
@@ -192,6 +195,7 @@ class AQEngine(nn.Module):
         replicas: Sequence[AQEngine],
         parameters_to_replicate: nn.ParameterDict,
         seed: Optional[int] = None,
+        code_penalties: Optional[torch.Tensor] = None,
         **kwargs,
     ):
         """Update self.quantized_weight.codes in-place via beam search"""
@@ -199,11 +203,18 @@ class AQEngine(nn.Module):
             assert replicas is None
             dtype = self.quantized_weight.codebooks.dtype
             self.quantized_weight.beam_search_update_codes_(
-                self.XTX.to(dtype), self.layer.weight.detach().to(dtype), dim_rng=random.Random(seed), **kwargs
+                self.XTX.to(dtype), self.layer.weight.detach().to(dtype), dim_rng=random.Random(seed),
+                code_penalties=code_penalties, **kwargs
             )
         else:
             assert replicas[0] is self
             replicated_parameters = torch.nn.parallel.replicate(parameters_to_replicate, devices)
+
+            replicated_code_penalties = [
+                None if code_penalties is None else code_penalties.to(device)
+                for device in devices
+            ]
+
             num_output_groups = self.quantized_weight.out_features // self.quantized_weight.out_group_size
             shard_size = (num_output_groups - 1) // len(devices) + 1
             active_slices_by_replica = [
@@ -211,9 +222,13 @@ class AQEngine(nn.Module):
             ]
 
             funcs_by_replica = [replica._replace_and_beam_search for replica in replicas]
-            inputs_by_replica = [(dict(), active_slices_by_replica[0])]
+            inputs_by_replica = [(dict(), active_slices_by_replica[0], replicated_code_penalties[0])]
             for i in range(1, len(devices)):
-                inputs_by_replica.append((replicated_parameters[i], active_slices_by_replica[i]))
+                inputs_by_replica.append((
+                    replicated_parameters[i],
+                    active_slices_by_replica[i],
+                    replicated_code_penalties[i],
+                ))
             kwargs_by_replica = [dict(kwargs, dim_rng=random.Random(seed)) for _ in range(len(devices))]
             new_code_parts_by_replica = torch.nn.parallel.parallel_apply(
                 funcs_by_replica, inputs_by_replica, kwargs_by_replica, devices=devices
