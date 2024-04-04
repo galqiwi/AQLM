@@ -730,16 +730,7 @@ if __name__ == "__main__":
         assert has_wandb, "`wandb` not installed, try pip install `wandb`"
         args.exp_name = (
             os.environ.get("WANDB_NAME", "AQ")
-            + f"_num_codebooks_{args.num_codebooks}"
-            + f"_out_group_size_{args.out_group_size}"
-            + f"_in_group_size_{args.in_group_size}"
-            + f"_nbits_per_codebook_{args.nbits_per_codebook}"
-            + f"_codebook_value_nbits_{args.codebook_value_nbits}"
-            + f"_codebook_value_num_groups_{args.codebook_value_num_groups}"
-            + f"_scale_nbits_{args.scale_nbits}"
-            + f"_steps_per_epoch_{args.steps_per_epoch}"
-            + f"_init_max_iter{args.init_max_iter}"
-            + f"_{len(args.devices)}gpus"
+            + f"_info_regularizer_{args.info_regularizer}"
         )
         args.group_size = args.in_group_size * args.out_group_size
 
