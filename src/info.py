@@ -14,8 +14,14 @@ def _calculate_code_frequencies(codes: torch.LongTensor, codebook_size: int):
 
 def _calculate_code_entropy(codes: torch.LongTensor, codebook_size: int, eps: float = 1e-20):
     """Calculate per-codebook code entropy measured in bits (base-2)"""
+    codes_out, codes_in, n_codebooks = codes.shape
+
     probs = _calculate_code_frequencies(codes, codebook_size)
+    assert probs.shape == (n_codebooks, codebook_size)
+
     logprobs = torch.log2(probs.clamp_min(eps))
+    assert logprobs.shape == (n_codebooks, codebook_size)
+
     print(codes.shape, probs.shape, logprobs.shape)
     return - torch.sum(probs * logprobs, dim=-1)
 

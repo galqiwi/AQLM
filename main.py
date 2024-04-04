@@ -24,6 +24,7 @@ from src.modelutils import (
 )
 from src.utils import using_tf32
 from transformers import PreTrainedModel
+from src.info import _calculate_code_entropy
 
 try:
     import wandb
@@ -182,6 +183,9 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
         else:
             sequential = [list(find_sublayers(layer).keys())]
 
+        layer_n_params = 0
+        layer_n_entropy_bits = 0.
+
         for names in sequential:
             if len(args.devices) == 1:
                 assert len(inps) == len(outs) == 1  # number of per-device inputs/outputs
@@ -207,6 +211,12 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
                                 found_original = True  # note: do not break to handle tied layers
 
                     assert found_original, f"could not find {sublayer_name}"
+
+                layer_n_params += quantized_weight.in_features * quantized_weight.out_features
+                layer_n_entropy_bits += _calculate_code_entropy(
+                    codes=quantized_weight.codes,
+                    codebook_size=2 ** args.nbits_per_codebook,
+                ).mean().item() * quantized_weight.codes.numel()
 
                 weight_avg_bits = quantized_weight.estimate_nbits_per_parameter()
                 overall_bits += int(weight_avg_bits * torch.numel(aq_handlers[sublayer_name].layer.weight.data))
@@ -246,9 +256,11 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
         stats_payload["layer_time"] = time.time() - start_time
         stats_payload["out_loss"] = torch.mean(torch.Tensor(out_losses)).item()
         stats_payload["Step"] = layer_index
+        stats_payload["codes_entropy_bits"] = layer_n_entropy_bits / layer_n_params
         if args.wandb:
             wandb.log({"out_loss": stats_payload["out_loss"]}, step=layer_index)
             wandb.log({"layer_time": stats_payload["layer_time"]}, step=layer_index)
+            wandb.log({"codes_entropy_bits": stats_payload["codes_entropy_bits"]}, step=layer_index)
         print(stats_payload)
 
     print("=====================\nFinal stats:")
