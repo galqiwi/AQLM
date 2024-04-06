@@ -109,6 +109,12 @@ class AQEngine(nn.Module):
             code_penalties = _get_entropy_penalties_upper_bound(
                 self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook,
                 regularizer=dynamic_regularizer_coefficient)
+
+            if (_calculate_code_entropy(
+                self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook
+            ).mean().item() < 16.0 * 1.9 / 2.0):
+                code_penalties = None
+
             self.beam_search_update_codes_(
                 args.devices,
                 replicas,
