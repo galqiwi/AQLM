@@ -92,8 +92,8 @@ class AQEngine(nn.Module):
                     penalty = self._compute_regularizer_penalty(dynamic_regularizer_coefficient, args)
                     full_loss = loss.item() + penalty
                     print(f"Full loss: {full_loss:.5f} = {loss.item():.9f} (mse) + {penalty:.9f} (reg)")
-                    if full_loss / previous_best_loss > (1.0 - args.relative_mse_tolerance):
-                        return self.quantized_weight  # early stopping; no updates after last epoch's beam search
+                    # if full_loss / previous_best_loss > (1.0 - args.relative_mse_tolerance):
+                    #     return self.quantized_weight  # early stopping; no updates after last epoch's beam search
                     previous_best_loss = min(previous_best_loss, full_loss)
 
                 opt.zero_grad()
