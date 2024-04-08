@@ -383,10 +383,10 @@ def beam_search_optimal_codes(
                 progressbar.update()
                 if (input_group_index * num_codebooks + codebook_index) % verbose != 0:
                     continue  # if update is an integer, compute metrics every (this many) beam search steps
-                best_loss = beam_losses.min(0).values.sum().item() / out_features
+                best_loss = 0. # beam_losses.min(0).values.sum().item() / out_features
                 info = f"in_group {input_group_index} / {num_in_groups} "
                 info += f"| codebook {codebook_index} / {num_codebooks} "
-                if code_penalties is None:
+                if code_penalties is None or True:
                     info += f"| loss {best_loss:.10f}"
                 else:  # un-regularize to restore MSE loss, report sparsity rate
                     codebook_ids = torch.arange(num_codebooks, device=beam_losses.device).view(1, 1, 1, -1)
