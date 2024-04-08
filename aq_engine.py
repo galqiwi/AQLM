@@ -106,7 +106,7 @@ class AQEngine(nn.Module):
             # search for better codes (cluster indices)
             seed = random.getrandbits(256)
             print("Entropy before beam search:", _calculate_code_entropy(
-                self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook).mean().item())
+                self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook).mean().item(), flush=True)
             code_penalties = _get_entropy_penalties_upper_bound(
                 self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook,
                 regularizer=dynamic_regularizer_coefficient)
@@ -128,7 +128,7 @@ class AQEngine(nn.Module):
             )
             print(f'beam search took {time.perf_counter()-begin}s')
             print("Entropy after beam search:", _calculate_code_entropy(
-                self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook).mean().item())
+                self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook).mean().item(), flush=True)
 
         return self.quantized_weight
 
