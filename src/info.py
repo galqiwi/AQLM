@@ -22,7 +22,6 @@ def _calculate_code_entropy(codes: torch.LongTensor, codebook_size: int, eps: fl
     logprobs = torch.log2(probs.clamp_min(eps))
     assert logprobs.shape == (n_codebooks, codebook_size)
 
-    print(codes.shape, probs.shape, logprobs.shape)
     return - torch.sum(probs * logprobs, dim=-1)
 
 
