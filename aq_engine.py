@@ -124,7 +124,7 @@ class AQEngine(nn.Module):
                 seed=seed,
                 beam_size=args.beam_size,
                 code_penalties=code_penalties,
-                verbose=True,
+                verbose=False,
             )
             print(f'beam search took {time.perf_counter()-begin}s')
             print("Entropy after beam search:", _calculate_code_entropy(
