@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+import time
 from argparse import Namespace
 from typing import Optional, Sequence, Union
 
@@ -115,6 +116,7 @@ class AQEngine(nn.Module):
             ).mean().item() < 16.0 * 1.9 / 2.0):
                 code_penalties = None
 
+            begin = time.perf_counter()
             self.beam_search_update_codes_(
                 args.devices,
                 replicas,
@@ -124,6 +126,7 @@ class AQEngine(nn.Module):
                 code_penalties=code_penalties,
                 verbose=True,
             )
+            print(f'beam search took {time.perf_counter()-begin}s')
             print("Entropy after beam search:", _calculate_code_entropy(
                 self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook).mean().item())
 
