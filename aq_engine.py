@@ -86,7 +86,7 @@ class AQEngine(nn.Module):
         while regularizer_r is None:
             regularizer *= 10
             entropy = get_entropy(regularizer)
-            print(regularizer, entropy)
+            print('BINSEARCH', regularizer, entropy)
             if entropy <= entropy_target:
                 regularizer_r = regularizer
                 entropy_r = entropy
@@ -99,7 +99,7 @@ class AQEngine(nn.Module):
         while regularizer_l is None:
             regularizer /= 10
             entropy = get_entropy(regularizer)
-            print(regularizer, entropy)
+            print('BINSEARCH', regularizer, entropy)
             if entropy_target < entropy:
                 regularizer_l = regularizer
                 entropy_l = entropy
@@ -152,7 +152,26 @@ class AQEngine(nn.Module):
                 regularizer_l = regularizer_m
                 entropy_l = entropy_m
 
-        return quantized_weights[-1]
+        final_info_regularizer = None
+        final_entropy_value = None
+        final_quantized_weight = None
+
+        for (info_regularizer, entropy_value, quantized_weight) in zip(
+            info_regularizers,
+            entropy_values,
+            quantized_weights,
+        ):
+            if final_entropy_value is None or (
+                abs(final_entropy_value - entropy_target) < abs(entropy_value - entropy_target)
+            ):
+                final_info_regularizer = info_regularizer
+                final_entropy_value = entropy_value
+                final_quantized_weight = quantized_weight
+
+        print(f'BINSEARCH {final_info_regularizer=}')
+        print(f'BINSEARCH {final_entropy_value=}')
+
+        return final_quantized_weight
 
     @torch.enable_grad()
     def _quantize(self, *, args: Namespace, verbose: bool = True) -> QuantizedWeight:
