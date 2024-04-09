@@ -43,8 +43,77 @@ class AQEngine(nn.Module):
         inp = math.sqrt(1 / self.nsamples) * inp.to(self.XTX.dtype)
         self.XTX += inp.matmul(inp.t())
 
-    @torch.enable_grad()
     def quantize(self, *, args: Namespace, verbose: bool = True) -> QuantizedWeight:
+        info_regularizers = []
+        entropy_values = []
+        quantized_weights = []
+
+        def get_entropy(info_regularizer):
+            args.info_regularizer = info_regularizer
+            quantized_weight = self._quantize(args=args, verbose=verbose)
+            quantized_weights.append(quantized_weight)
+            info_regularizers.append(info_regularizer)
+
+            entropy = _calculate_code_entropy(
+                quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook).mean().item()
+            entropy_values.append(entropy)
+
+            return entropy
+
+        entropy_target = 8.0
+        entropy_target_err = 0.1
+        regularizer_start = args.info_regularizer
+
+        regularizer_l = None
+        entropy_l = None
+        regularizer_r = None
+        entropy_r = None
+        # entropy(regularizer_r) <= entropy_target
+        # entropy_target < entropy(regularizer_l)
+
+        entropy_start = get_entropy(regularizer_start)
+        if entropy_start <= entropy_target:
+            regularizer_r = regularizer_start
+            entropy_r = entropy_start
+        else:
+            regularizer_l = regularizer_start
+            entropy_l = entropy_start
+
+        regularizer = regularizer_start
+
+        while regularizer_r is None:
+            regularizer *= 10
+            entropy = get_entropy(regularizer)
+            print(regularizer, entropy)
+            if entropy <= entropy_target:
+                regularizer_r = regularizer
+                entropy_r = entropy
+            else:
+                regularizer_l = regularizer
+                entropy_l = entropy
+
+        regularizer = regularizer_start
+
+        while regularizer_l is None:
+            regularizer /= 10
+            entropy = get_entropy(regularizer)
+            print(regularizer, entropy)
+            if entropy_target < entropy:
+                regularizer_l = regularizer
+                entropy_l = entropy
+            else:
+                regularizer_r = regularizer
+                entropy_r = entropy
+
+        print(f'{regularizer_l=}')
+        print(f'{entropy_l=}')
+        print(f'{regularizer_r=}')
+        print(f'{entropy_r=}')
+
+        return quantized_weights[-1]
+
+    @torch.enable_grad()
+    def _quantize(self, *, args: Namespace, verbose: bool = True) -> QuantizedWeight:
         """create a QuantizedLinear with specified args based on the collected hessian (XTX) data"""
         assert isinstance(args.devices, (list, tuple)) and len(args.devices) >= 1, f"Found devices = {args.devices}"
         assert args.devices[0] == self.device, (args.devices[0], self.XTX.device)
@@ -110,11 +179,6 @@ class AQEngine(nn.Module):
             code_penalties = _get_entropy_penalties_upper_bound(
                 self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook,
                 regularizer=dynamic_regularizer_coefficient)
-
-            if (_calculate_code_entropy(
-                self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook
-            ).mean().item() < 16.0 * 1.9 / 2.0):
-                code_penalties = None
 
             begin = time.perf_counter()
             self.beam_search_update_codes_(
