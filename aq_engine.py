@@ -6,6 +6,8 @@ import time
 from argparse import Namespace
 from typing import Optional, Sequence, Union
 
+import numpy as np
+
 import torch
 import torch.nn as nn
 from torch.nn.parallel.scatter_gather import Gather
@@ -105,10 +107,50 @@ class AQEngine(nn.Module):
                 regularizer_r = regularizer
                 entropy_r = entropy
 
-        print(f'{regularizer_l=}')
-        print(f'{entropy_l=}')
-        print(f'{regularizer_r=}')
-        print(f'{entropy_r=}')
+        print(f'BINSEARCH ')
+        print(f'BINSEARCH finished calibrating')
+        print(f'BINSEARCH {regularizer_l=}')
+        print(f'BINSEARCH {entropy_l=}')
+        print(f'BINSEARCH {regularizer_r=}')
+        print(f'BINSEARCH {entropy_r=}')
+        print(f'BINSEARCH ')
+
+        for step in range(10):
+            t = (entropy_target - entropy_l) / (entropy_r - entropy_l)
+
+            t = max(t, 0.01)
+            t = min(t, 0.99)
+
+            regularizer_m = np.exp(
+                np.log(regularizer_l) + (np.log(regularizer_r) - np.log(regularizer_l)) * t
+            )
+
+            print(f'BINSEARCH ')
+            print(f'BINSEARCH {regularizer_l=}')
+            print(f'BINSEARCH {entropy_l=}')
+            print(f'BINSEARCH {regularizer_r=}')
+            print(f'BINSEARCH {entropy_r=}')
+            print(f'BINSEARCH {t=}')
+            print(f'BINSEARCH ')
+            print(f'BINSEARCH {regularizer_m=}')
+
+            start = time.perf_counter()
+            entropy_m = get_entropy(regularizer_m)
+            stop = time.perf_counter()
+
+            print(f'BINSEARCH {entropy_m=}')
+            print(f'BINSEARCH took {stop - start}s')
+            print(f'BINSEARCH ')
+
+            if abs(entropy_m - entropy_target) < entropy_target_err:
+                break
+
+            if entropy_m <= entropy_target:
+                regularizer_r = regularizer_m
+                entropy_r = entropy_m
+            else:
+                regularizer_l = regularizer_m
+                entropy_l = entropy_m
 
         return quantized_weights[-1]
 
