@@ -116,6 +116,10 @@ class AQEngine(nn.Module):
         print(f'BINSEARCH ')
 
         for step in range(10):
+            if abs(entropy_l - entropy_target) < entropy_target_err:
+                break
+            if abs(entropy_r - entropy_target) < entropy_target_err:
+                break
             t = (entropy_target - entropy_l) / (entropy_r - entropy_l)
 
             t = max(t, 0.01)
@@ -162,7 +166,7 @@ class AQEngine(nn.Module):
             quantized_weights,
         ):
             if final_entropy_value is None or (
-                abs(final_entropy_value - entropy_target) < abs(entropy_value - entropy_target)
+                abs(final_entropy_value - entropy_target) > abs(entropy_value - entropy_target)
             ):
                 final_info_regularizer = info_regularizer
                 final_entropy_value = entropy_value
