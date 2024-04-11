@@ -2,7 +2,7 @@ import os
 import time
 from argparse import Namespace
 from itertools import chain
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -34,7 +34,7 @@ except ModuleNotFoundError:
     has_wandb = False
 
 
-def quantize_model(model: PreTrainedModel, args: Namespace):
+def quantize_model(model, args):
     """main entry point to functions for model quantization"""
     tick = time.time()
 
@@ -44,7 +44,7 @@ def quantize_model(model: PreTrainedModel, args: Namespace):
         nsamples=args.nsamples,
         seed=args.seed,
         model_path=args.model_path,
-        seqlen=args.model_seqlen,
+        seqlen=model.seqlen,
     )
     results = quantize_aq(model, dataloader, args)
     print(f"quantization time: {time.time() - tick:.1f}")
@@ -53,29 +53,29 @@ def quantize_model(model: PreTrainedModel, args: Namespace):
 
 @torch.no_grad()
 def get_inps(
-    model: PreTrainedModel,
-    data: Sequence,
-    model_seqlen: int,
-    devices: Sequence[torch.device],
-    offload_activations: bool,
-) -> Tuple[Sequence[torch.Tensor], Dict]:
+    model: PreTrainedModel, data_iterable: Iterable, args: Namespace, nsamples: Optional[int] = None
+) -> Sequence[torch.Tensor]:
     """
     mocks model launch to collect inputs to the first model layer
     :returns: a list of torch tensors with activations for each device in args.devices.
     Each tensor has shape [nsample_per_device, seq_len, hid_size]
     """
     print("catching layer inputs from data", flush=True)
+
     layers = get_layers(model)
-    device = devices[0] if not offload_activations else torch.device("cpu")
 
-    if isinstance(data, torch.Tensor) and data.shape[0] == 1:  # given a single long tensor, split it into sequences
-        assert data.ndim == 2, "data must be either a single tensor with a long sequence or a list of pre-cut sequences"
-        num_sequences, num_tokens_dropped = data.numel() // model_seqlen, data.numel() % model_seqlen
-        data = [data[:, i * model_seqlen : (i + 1) * model_seqlen].to(device) for i in range(num_sequences)]
-        print(f"Got {len(data)} sequences of {model_seqlen} tokens, dropped last {num_tokens_dropped} tokens")
-        del num_sequences, num_tokens_dropped
+    nsamples = nsamples or args.nsamples or len(data_iterable)
+    device = args.devices[0] if not args.offload_activations else torch.device("cpu")
+    assert nsamples is not None
 
-    assert all(sequence.shape[1] == model_seqlen for sequence in data)
+    if isinstance(data_iterable, torch.Tensor):
+
+        def batch_generator(testenc, seqlen, nsamples):
+            for i in range(nsamples):
+                batch = testenc[:, (i * seqlen) : ((i + 1) * seqlen)].to(device)
+                yield batch
+
+        data_iterable = batch_generator(data_iterable, model.seqlen, nsamples)
 
     emb = model.get_input_embeddings()
     emb_device = emb.weight.device
@@ -91,15 +91,15 @@ def get_inps(
     layers[0] = layers[0].to(device)
 
     dtype = next(iter(model.parameters())).dtype
-    nsamples_per_device = (len(data) - 1) // len(devices) + 1
+    nsamples_per_device = (nsamples - 1) // len(args.devices) + 1
     inps = [
         torch.zeros(
-            (min(nsamples_per_device, len(data) - i * nsamples_per_device), model_seqlen, model.config.hidden_size),
+            (min(nsamples_per_device, nsamples - i * nsamples_per_device), model.seqlen, model.config.hidden_size),
             dtype=dtype,
-            device=devices[i] if not offload_activations else "cpu",
-            pin_memory=offload_activations,
+            device=args.devices[i] if not args.offload_activations else "cpu",
+            pin_memory=args.offload_activations,
         )
-        for i in range(len(devices))
+        for i in range(len(args.devices))
     ]
     forward_arg_names = ["attention_mask", "position_ids"]
     if model.config.model_type.lower() in FALCON_TYPES:
@@ -125,7 +125,7 @@ def get_inps(
     layers[0] = Catcher(layers[0])
     saved_num_threads = torch.get_num_threads()
     torch.set_num_threads(min(16, saved_num_threads))
-    for batch_inps in data:
+    for batch_inps in data_iterable:
         try:
             if isinstance(batch_inps, (list, tuple)):
                 batch_inps, *_ = batch_inps
@@ -134,7 +134,6 @@ def get_inps(
             model(batch_inps, attention_mask=torch.ones_like(batch_inps))
         except CatcherExit:
             pass  # exit after catcher finished without running the rest of the model layers
-
     torch.set_num_threads(saved_num_threads)
     layers[0] = layers[0].module
 
@@ -155,14 +154,15 @@ def get_inps(
 def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
     assert not torch.backends.cuda.matmul.allow_tf32
     print("\nStarting AQ quantization ...")
-    inps, forward_args = get_inps(model, dataloader, args.model_seqlen, args.devices, args.offload_activations)
+    inps, forward_args = get_inps(model, dataloader, args)
     outs = [torch.zeros_like(inp_tensor, pin_memory=inp_tensor.is_pinned()) for inp_tensor in inps]
+
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
     quantizers = {}
     overall_bits = 0
-    number_of_quantized_params = 0
+    model_number_of_params = 0
     layers = get_layers(model)
     for layer_index in range(len(layers)):
         print(f"\n---------------- Layer {layer_index} of {len(layers)} ----------------")
@@ -186,19 +186,7 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
         layer_n_params = 0
         layer_n_entropy_bits = 0.
 
-        loaded_layer = False
-        if args.resume:
-            assert args.save is not None, "using --resume requires a --save path to resume from"
-            layer_save_path = os.path.join(args.save, f"{layer_index}.pth")
-            if os.path.exists(layer_save_path):
-                print(f"Loading layer {layer_index} from {layer_save_path}")
-                layer = torch.load(layer_save_path, map_location=args.devices[0])
-                loaded_layer = True
-
         for names in sequential:
-            if loaded_layer:
-                print("Skipping quantization: loaded a previously quantized layer")
-                break
             if len(args.devices) == 1:
                 assert len(inps) == len(outs) == 1  # number of per-device inputs/outputs
                 aq_handlers = init_aq_engines(layer, names, inps[0], outs[0], **forward_args)
@@ -232,12 +220,9 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
 
                 weight_avg_bits = quantized_weight.estimate_nbits_per_parameter()
                 overall_bits += int(weight_avg_bits * torch.numel(aq_handlers[sublayer_name].layer.weight.data))
-                number_of_quantized_params += torch.numel(aq_handlers[sublayer_name].layer.weight.data)
-                print("curent_avg_bits", overall_bits / number_of_quantized_params)
+                model_number_of_params += torch.numel(aq_handlers[sublayer_name].layer.weight.data)
+                print("curent_avg_bits", overall_bits / model_number_of_params)
                 quantizers["model.layers.%d.%s" % (layer_index, sublayer_name)] = ()  # to be updated
-
-            del aq_handlers
-            assert not loaded_layer
 
             print("PREPARING TO FINETUNE")
             print(layer)
@@ -246,28 +231,23 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
                 layer = finetune_groupwise(layer=layer, inps=inps, outs=outs, args=args, **forward_args)
             layer = layer.to(dtype=layer_dtype_original)
             print("FINISHED FINETUNING")
-
-        if args.save and not loaded_layer:
+        if args.save:
             os.makedirs(args.save, exist_ok=True)
             layer_save_path = os.path.join(args.save, f"{layer_index}.pth")
             print(f"Saving layer {layer_index}... to {layer_save_path}")
             torch.save(layer, layer_save_path)
-            if args.on_save:
-                exec(args.on_save)  # a callback e.g. to save progress in slurm or similar distributed infrastructure
 
-        should_compute_mse = not (args.skip_out_loss or loaded_layer)
         if len(args.devices) == 1:
             assert len(inps) == len(outs) == 1
-            out_losses = update_outs(layer, inps[0], outs[0], compute_mse=should_compute_mse, **forward_args)
+            out_losses = update_outs(layer, inps[0], outs[0], compute_mse=not args.skip_out_loss, **forward_args)
         else:
             out_losses = update_outs_parallel(
-                args.devices, layer, inps, outs, compute_mse=should_compute_mse, **forward_args
+                args.devices, layer, inps, outs, compute_mse=not args.skip_out_loss, **forward_args
             )
-        stats_payload["out_loss"] = torch.mean(torch.Tensor(out_losses)).item()
-
 
         layers[layer_index] = layer.to(layer_device_original)
         del layer
+        del aq_handlers
         torch.cuda.empty_cache()
 
         inps, outs = outs, inps
@@ -295,32 +275,24 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
         }
         torch.save(not_quantized_weights, args.save + "/not_quantized_weights.pt")
 
-    print("=====================\nFinal stats:")
-    if args.save:
-        torch.save(vars(args), os.path.join(args.save, "args.pt"))
-        if args.on_save:
-            exec(args.on_save)  # a callback e.g. to save progress in slurm or similar distributed infrastructure
-
-
     if args.wandb:
         wandb.log({"max_cuda_mem_quantize": round(torch.cuda.max_memory_allocated() / 1e9, 2)})
-        if number_of_quantized_params > 0:  # do not report avg bits if we load all pre-quantized layers via --resume
-            wandb.log({"Avg_bits": overall_bits / number_of_quantized_params})
+        wandb.log({"Avg_bits": overall_bits / model_number_of_params})
     model.config.use_cache = use_cache
     print(f"quantize: {torch.cuda.max_memory_allocated()=:,}")
     return quantizers
 
 
 @torch.no_grad()
-def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Namespace) -> float:
+def perplexity_eval(model, testenc, args):
     print(f"\nEvaluating perplexity for {args.dataset_name} dataset ...")
 
-    nsamples = testenc.numel() // args.model_seqlen
+    nsamples = testenc.numel() // model.seqlen
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
-    inps, forward_args = get_inps(model, testenc, args.model_seqlen, args.devices, args.offload_activations)
+    inps, forward_args = get_inps(model, testenc, args, nsamples=nsamples)
     outs = [torch.zeros_like(inp_tensor, pin_memory=inp_tensor.is_pinned()) for inp_tensor in inps]
     device = args.devices[0]
     for k, v in forward_args.items():
@@ -349,21 +321,20 @@ def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Nam
         inp = inps[i // nsamples_per_device][i % nsamples_per_device].to(args.devices[0], non_blocking=True)
         lm_logits = get_lm_logits(inp.to(device), model)
         shift_logits = lm_logits[:, :-1, :].contiguous()
-        shift_labels = testenc[:, (i * args.model_seqlen) : ((i + 1) * args.model_seqlen)][:, 1:]
+        shift_labels = testenc[:, (i * model.seqlen) : ((i + 1) * model.seqlen)][:, 1:]
         loss_fct = nn.CrossEntropyLoss()
         loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-        neg_log_likelihood = loss.float() * args.model_seqlen
+        neg_log_likelihood = loss.float() * model.seqlen
         nlls.append(neg_log_likelihood)
-    ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * args.model_seqlen)).item()
-    print(f"\n{args.dataset_name} perplexity = {ppl:.4f}\n")
+    ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * model.seqlen))
+    print(f"\n{args.dataset_name} perplexity = {ppl.item():.4f}\n")
 
     get_model_head(model).to(torch.device("cpu"))
 
     if args.wandb:
-        wandb.log({args.dataset_name: ppl})
+        wandb.log({args.dataset_name: ppl.item()})
 
     model.config.use_cache = use_cache
-    return ppl
 
 
 @torch.no_grad()
@@ -559,18 +530,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--load", type=str, default=None, help="Path to load quantized statistics.")
     parser.add_argument("--save", type=str, default=None, help="Path to save quantized statistics.")
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="If true, search for previously saved layers and reuse them to save time. Requires --save path.",
-    )
-    parser.add_argument(
-        "--on_save",
-        type=str,
-        default=None,
-        help="Optional callback (python code string) to call after each saved layer. Example: when "
-        "training on preemptible compute, upload partially quantized model and --resume later.",
-    )
     parser.add_argument("--devices", metavar="N", type=str, nargs="+", default=None, help="List of devices")
     parser.add_argument(
         "--dtype",
@@ -786,7 +745,7 @@ if __name__ == "__main__":
         )
 
     print("\n============ Load model... ============")
-    model = get_model(args.model_path, args.load, args.dtype, attn_implementation=args.attn_implementation).train(False)
+    model = get_model(args.model_path, args.load, args.dtype, args.model_seqlen).train(False)
 
     if not args.load and not args.no_quant:
         print("\n============ Quantizing model... ============")
@@ -802,7 +761,7 @@ if __name__ == "__main__":
             dataset,
             seed=args.seed,
             model_path=args.model_path,
-            seqlen=args.model_seqlen,
+            seqlen=model.seqlen,
             eval_mode=True,
         )
         args.dataset_name = dataset
