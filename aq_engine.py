@@ -242,9 +242,9 @@ class AQEngine(nn.Module):
             print("Entropy before beam search:", _calculate_code_entropy(
                 self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook).mean().item(), flush=True)
 
-            for codebook_idx in range(self.quantized_weight.codes.shape[0]):
+            for codebook_idx in range(self.quantized_weight.codes.shape[-1]):
                 print(f"Entropy before beam search[codebook_idx={codebook_idx}]:", _calculate_code_entropy(
-                    self.quantized_weight.codes[codebook_idx][None, :],
+                    self.quantized_weight.codes[:, :, codebook_idx][None, :],
                     codebook_size=2 ** args.nbits_per_codebook,
                 ).mean().item(), flush=True)
 
@@ -265,9 +265,9 @@ class AQEngine(nn.Module):
             print(f'beam search took {time.perf_counter()-begin}s')
             print("Entropy after beam search:", _calculate_code_entropy(
                 self.quantized_weight.codes, codebook_size=2 ** args.nbits_per_codebook).mean().item(), flush=True)
-            for codebook_idx in range(self.quantized_weight.codes.shape[0]):
+            for codebook_idx in range(self.quantized_weight.codes.shape[-1]):
                 print(f"Entropy after beam search[codebook_idx={codebook_idx}]:", _calculate_code_entropy(
-                    self.quantized_weight.codes[codebook_idx][None, :],
+                    self.quantized_weight.codes[:, :, codebook_idx][None, :],
                     codebook_size=2 ** args.nbits_per_codebook,
                 ).mean().item(), flush=True)
 
