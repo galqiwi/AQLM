@@ -2,7 +2,7 @@ import os
 import time
 from argparse import Namespace
 from itertools import chain
-from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -162,7 +162,7 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
 
     quantizers = {}
     overall_bits = 0
-    number_of_quantized_params = 0
+    model_number_of_params = 0
     layers = get_layers(model)
     for layer_index in range(len(layers)):
         print(f"\n---------------- Layer {layer_index} of {len(layers)} ----------------")
@@ -186,19 +186,7 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
         layer_n_params = 0
         layer_n_entropy_bits = 0.
 
-        loaded_layer = False
-        if args.resume:
-            assert args.save is not None, "using --resume requires a --save path to resume from"
-            layer_save_path = os.path.join(args.save, f"{layer_index}.pth")
-            if os.path.exists(layer_save_path):
-                print(f"Loading layer {layer_index} from {layer_save_path}")
-                layer = torch.load(layer_save_path, map_location=args.devices[0])
-                loaded_layer = True
-
         for names in sequential:
-            if loaded_layer:
-                print("Skipping quantization: loaded a previously quantized layer")
-                break
             if len(args.devices) == 1:
                 assert len(inps) == len(outs) == 1  # number of per-device inputs/outputs
                 aq_handlers = init_aq_engines(layer, names, inps[0], outs[0], **forward_args)
@@ -232,12 +220,9 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
 
                 weight_avg_bits = quantized_weight.estimate_nbits_per_parameter()
                 overall_bits += int(weight_avg_bits * torch.numel(aq_handlers[sublayer_name].layer.weight.data))
-                number_of_quantized_params += torch.numel(aq_handlers[sublayer_name].layer.weight.data)
-                print("curent_avg_bits", overall_bits / number_of_quantized_params)
+                model_number_of_params += torch.numel(aq_handlers[sublayer_name].layer.weight.data)
+                print("curent_avg_bits", overall_bits / model_number_of_params)
                 quantizers["model.layers.%d.%s" % (layer_index, sublayer_name)] = ()  # to be updated
-
-            del aq_handlers
-            assert not loaded_layer
 
             print("PREPARING TO FINETUNE")
             print(layer)
@@ -246,28 +231,23 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
                 layer = finetune_groupwise(layer=layer, inps=inps, outs=outs, args=args, **forward_args)
             layer = layer.to(dtype=layer_dtype_original)
             print("FINISHED FINETUNING")
-
-        if args.save and not loaded_layer:
+        if args.save:
             os.makedirs(args.save, exist_ok=True)
             layer_save_path = os.path.join(args.save, f"{layer_index}.pth")
             print(f"Saving layer {layer_index}... to {layer_save_path}")
             torch.save(layer, layer_save_path)
-            if args.on_save:
-                exec(args.on_save)  # a callback e.g. to save progress in slurm or similar distributed infrastructure
 
-        should_compute_mse = not (args.skip_out_loss or loaded_layer)
         if len(args.devices) == 1:
             assert len(inps) == len(outs) == 1
-            out_losses = update_outs(layer, inps[0], outs[0], compute_mse=should_compute_mse, **forward_args)
+            out_losses = update_outs(layer, inps[0], outs[0], compute_mse=not args.skip_out_loss, **forward_args)
         else:
             out_losses = update_outs_parallel(
-                args.devices, layer, inps, outs, compute_mse=should_compute_mse, **forward_args
+                args.devices, layer, inps, outs, compute_mse=not args.skip_out_loss, **forward_args
             )
-        stats_payload["out_loss"] = torch.mean(torch.Tensor(out_losses)).item()
-
 
         layers[layer_index] = layer.to(layer_device_original)
         del layer
+        del aq_handlers
         torch.cuda.empty_cache()
 
         inps, outs = outs, inps
@@ -550,18 +530,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--load", type=str, default=None, help="Path to load quantized statistics.")
     parser.add_argument("--save", type=str, default=None, help="Path to save quantized statistics.")
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="If true, search for previously saved layers and reuse them to save time. Requires --save path.",
-    )
-    parser.add_argument(
-        "--on_save",
-        type=str,
-        default=None,
-        help="Optional callback (python code string) to call after each saved layer. Example: when "
-        "training on preemptible compute, upload partially quantized model and --resume later.",
-    )
     parser.add_argument("--devices", metavar="N", type=str, nargs="+", default=None, help="List of devices")
     parser.add_argument(
         "--dtype",
