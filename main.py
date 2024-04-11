@@ -611,6 +611,12 @@ if __name__ == "__main__":
         help="Penalry for total information in layer codes, applied only in beam search",
     )
     parser.add_argument(
+        "--target_group_entropy",
+        type=float,
+        default=8.0,
+        help="Target group entropy",
+    )
+    parser.add_argument(
         "--init_max_iter",
         type=int,
         default=100,

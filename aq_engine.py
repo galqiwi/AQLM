@@ -62,7 +62,7 @@ class AQEngine(nn.Module):
 
             return entropy
 
-        entropy_target = 8.0
+        entropy_target = args.target_group_entropy
         entropy_target_err = 0.1
         regularizer_start = args.info_regularizer
 
