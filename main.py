@@ -276,7 +276,7 @@ def quantize_aq(model: PreTrainedModel, dataloader: Iterable, args: Namespace):
         stats_payload["layer_time"] = time.time() - start_time
         stats_payload["out_loss"] = torch.mean(torch.Tensor(out_losses)).item()
         stats_payload["Step"] = layer_index
-        stats_payload["codes_entropy_bits"] = layer_n_entropy_bits / layer_n_params
+        stats_payload["codes_entropy_bits"] = 0. if layer_n_params == 0 else (layer_n_entropy_bits / layer_n_params)
         if args.wandb:
             wandb.log({"out_loss": stats_payload["out_loss"]}, step=layer_index)
             wandb.log({"layer_time": stats_payload["layer_time"]}, step=layer_index)
