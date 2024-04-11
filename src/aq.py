@@ -50,6 +50,7 @@ class QuantizedWeight(nn.Module):
         **init_kwargs,
     ):
         super().__init__()
+        self.XTX = XTX
         self.out_features, self.in_features = reference_weight.shape
         assert self.in_features % in_group_size == 0
         assert self.out_features % out_group_size == 0
