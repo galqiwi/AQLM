@@ -80,7 +80,7 @@ class AQEngine(nn.Module):
 
         def get_loss(delta_weight):
             delta_weight = out_loss_matrix.double() @ delta_weight.double()
-            loss = (delta_weight @ XTX.double()).flatten() @ delta_weight.flatten() / len(delta_weight)
+            loss = (delta_weight @ self.XTX.double()).flatten() @ delta_weight.flatten() / len(delta_weight)
             return loss
 
         previous_best_loss = float("inf")  # for early stopping
