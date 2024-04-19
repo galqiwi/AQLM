@@ -73,13 +73,13 @@ class AQEngine(nn.Module):
             replicas = torch.nn.parallel.replicate(self, args.devices)
             replicas[0] = self
 
-        YTY = reference_weight @ self.XTX @ reference_weight.T
+        YTY = reference_weight.double() @ self.XTX @ reference_weight.T.double()
         YTY_eigh = torch.linalg.eigh(YTY)
         out_loss_matrix = torch.diag(torch.maximum(YTY_eigh.eigenvalues, torch.tensor(0.)).sqrt()) @ YTY_eigh.eigenvectors.T
         out_loss_matrix = out_loss_matrix.double()
 
         def get_loss(delta_weight):
-            delta_weight = out_loss_matrix @ delta_weight
+            delta_weight = out_loss_matrix.double() @ delta_weight.double()
             loss = (delta_weight @ XTX.double()).flatten() @ delta_weight.flatten() / len(delta_weight)
             return loss
 
