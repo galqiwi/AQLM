@@ -46,9 +46,10 @@ class AQEngine(nn.Module):
         """create a QuantizedLinear with specified args based on the collected hessian (XTX) data"""
         assert isinstance(args.devices, (list, tuple)) and len(args.devices) >= 1, f"Found devices = {args.devices}"
         assert args.devices[0] == self.device, (args.devices[0], self.XTX.device)
+        reference_weight = self.layer.weight.detach().to(device=self.device, dtype=torch.float32)
         self.quantized_weight = QuantizedWeight(
             XTX=self.XTX.to(device=self.device, dtype=torch.float32),
-            reference_weight=self.layer.weight.detach().to(device=self.device, dtype=torch.float32),
+            reference_weight=reference_weight,
             out_group_size=args.out_group_size,
             in_group_size=args.in_group_size,
             num_codebooks=args.num_codebooks,
@@ -72,14 +73,21 @@ class AQEngine(nn.Module):
             replicas = torch.nn.parallel.replicate(self, args.devices)
             replicas[0] = self
 
+        YTY = reference_weight @ self.XTX @ reference_weight.T
+        YTY_eigh = torch.linalg.eigh(YTY)
+        out_loss_matrix = torch.diag(torch.maximum(YTY_eigh.eigenvalues, torch.tensor(0.)).sqrt()) @ YTY_eigh.eigenvectors.T
+        out_loss_matrix = out_loss_matrix.double()
+
+        def get_loss(delta_weight):
+            delta_weight = out_loss_matrix @ delta_weight
+            loss = (delta_weight @ XTX.double()).flatten() @ delta_weight.flatten() / len(delta_weight)
+            return loss
+
         previous_best_loss = float("inf")  # for early stopping
         for epoch in range(args.max_epochs):
             # train codebooks and scales
             for step in range(args.steps_per_epoch):
-                if len(args.devices) == 1:
-                    loss = self._compute_mse()
-                else:
-                    loss = self._compute_mse_parallel(args.devices, replicas, differentiable_parameters)
+                loss = get_loss(self.quantized_weigh() - reference_weight)
 
                 if not torch.isfinite(loss).item():
                     raise ValueError(f"Quantization loss is {loss}")
