@@ -75,9 +75,10 @@ class AQEngine(nn.Module):
 
         YTY = reference_weight.double() @ self.XTX @ reference_weight.T.double()
         YTY_eigh = torch.linalg.eigh(YTY)
+        out_loss_matrix_tmp = torch.maximum(YTY_eigh.eigenvalues, torch.tensor(0.))
+        out_loss_matrix_tmp = out_loss_matrix_tmp + out_loss_matrix_tmp.mean()
         out_loss_matrix = torch.diag(
-            torch.maximum(YTY_eigh.eigenvalues, torch.tensor(0.)).sqrt() +
-            torch.maximum(YTY_eigh.eigenvalues, torch.tensor(0.)).mean().sqrt()
+            1 / out_loss_matrix_tmp.sqrt()
         ) @ YTY_eigh.eigenvectors.T
         out_loss_matrix = out_loss_matrix.double()
 
