@@ -87,7 +87,7 @@ class AQEngine(nn.Module):
         for epoch in range(args.max_epochs):
             # train codebooks and scales
             for step in range(args.steps_per_epoch):
-                loss = get_loss(self.quantized_weigh() - reference_weight)
+                loss = get_loss(self.quantized_weight() - reference_weight)
 
                 if not torch.isfinite(loss).item():
                     raise ValueError(f"Quantization loss is {loss}")
