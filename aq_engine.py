@@ -5,6 +5,7 @@ import random
 from argparse import Namespace
 from typing import Optional, Sequence, Union
 
+import torch.cuda.comm
 import torch
 import torch.nn as nn
 from torch.nn.parallel.scatter_gather import Gather
@@ -41,14 +42,50 @@ class AQEngine(nn.Module):
         inp = math.sqrt(1 / self.nsamples) * inp.to(self.XTX.dtype)
         self.XTX += inp.matmul(inp.t())
 
+    @staticmethod
+    @torch.no_grad()
+    def _optimize_scales(quantized_weight, reference_weight, XTX):
+        out_size, in_size = reference_weight.shape
+        assert quantized_weight.scales.shape == (out_size, 1, 1, 1)
+
+        quantized_weight.scales.data = torch.ones_like(quantized_weight.scales.data)
+
+        quantized_weight_value = quantized_weight()
+        assert quantized_weight_value.shape == (out_size, in_size)
+
+        quantized_weight_XTX = quantized_weight_value @ XTX
+        assert quantized_weight_XTX.shape == (out_size, in_size)
+
+        optimal_scales = (
+                (quantized_weight_XTX * reference_weight).sum(dim=1) /
+                (quantized_weight_XTX * quantized_weight_value).sum(dim=1)
+        )
+        assert optimal_scales.shape == (out_size,)
+
+        quantized_weight.scales.data = optimal_scales.reshape(out_size, 1, 1, 1)
+
+    def optimize_scales(self, devices, replicas, reference_weight):
+        self._optimize_scales(self.quantized_weight, reference_weight, self.XTX)
+        if len(replicas) == 1:
+            return
+        for replica, scales in zip(
+            replicas[1:],
+            torch.cuda.comm.broadcast(
+                self.quantized_weight.scales,
+                devices=devices[1:]
+            )
+        ):
+            replica.quantized_weight.scales.data = scales
+
     @torch.enable_grad()
     def quantize(self, *, args: Namespace, verbose: bool = True) -> QuantizedWeight:
         """create a QuantizedLinear with specified args based on the collected hessian (XTX) data"""
         assert isinstance(args.devices, (list, tuple)) and len(args.devices) >= 1, f"Found devices = {args.devices}"
         assert args.devices[0] == self.device, (args.devices[0], self.XTX.device)
+        reference_weight = self.layer.weight.detach().to(device=self.device, dtype=torch.float32)
         self.quantized_weight = QuantizedWeight(
             XTX=self.XTX.to(device=self.device, dtype=torch.float32),
-            reference_weight=self.layer.weight.detach().to(device=self.device, dtype=torch.float32),
+            reference_weight=reference_weight,
             out_group_size=args.out_group_size,
             in_group_size=args.in_group_size,
             num_codebooks=args.num_codebooks,
@@ -60,6 +97,12 @@ class AQEngine(nn.Module):
             max_points_per_centroid=args.init_max_points_per_centroid,
             devices=args.devices,
             verbose=True,
+        )
+        self.quantized_weight.scales.requires_grad = False
+        self._optimize_scales(
+            quantized_weight=self.quantized_weight,
+            reference_weight=reference_weight,
+            XTX=self.XTX,
         )
 
         differentiable_parameters = nn.ParameterDict(
@@ -76,6 +119,13 @@ class AQEngine(nn.Module):
         for epoch in range(args.max_epochs):
             # train codebooks and scales
             for step in range(args.steps_per_epoch):
+                if (step + 1) % 10 == 0:
+                    self.optimize_scales(
+                        devices=args.devices,
+                        replicas=replicas,
+                        reference_weight=self.quantized_weight,
+                    )
+
                 if len(args.devices) == 1:
                     loss = self._compute_mse()
                 else:
@@ -85,6 +135,7 @@ class AQEngine(nn.Module):
                     raise ValueError(f"Quantization loss is {loss}")
                 if step == 0 and args.relative_mse_tolerance is not None:
                     if loss.item() / previous_best_loss > (1.0 - args.relative_mse_tolerance):
+                        self.quantized_weight.scales.requires_grad = True
                         return self.quantized_weight  # early stopping; no updates after last epoch's beam search
                     previous_best_loss = min(previous_best_loss, loss.item())
 
@@ -104,6 +155,7 @@ class AQEngine(nn.Module):
                 beam_size=args.beam_size,
                 verbose=True,
             )
+        self.quantized_weight.scales.requires_grad = True
         return self.quantized_weight
 
     def _compute_mse(self, selection: Union[slice, ellipsis] = ...) -> torch.Tensor:
