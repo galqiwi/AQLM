@@ -76,9 +76,8 @@ class QuantizedWeight(nn.Module):
             self.scales_are_lossless = scale_nbits == 0 or scale_nbits >= 16 or (2**scale_nbits >= scales.shape[1])
             if self.scales_are_lossless or self.straight_through_gradient:
                 # ^-- this checks if scales can be preserved losslessly
-                self.scales = nn.Parameter(torch.ones_like(scales), requires_grad=True)
+                self.scales = nn.Parameter(scales, requires_grad=True)
             else:
-                assert False
                 scales_clusters, scales_indices, _ = fit_kmeans_1d(scales.flatten(1, -1), k=2**scale_nbits)
                 self.scales_clusters = nn.Parameter(scales_clusters, requires_grad=True)
                 self.scales_indices = nn.Parameter(scales_indices, requires_grad=False)
