@@ -69,7 +69,7 @@ class AQEngine(nn.Module):
 
     def optimize_scales(self, devices, replicas, reference_weight):
         self._optimize_scales(self.quantized_weight, reference_weight, self.XTX)
-        if len(replicas) == 1:
+        if len(devices) == 1:
             return
         for replica, scales in zip(
             replicas[1:],
