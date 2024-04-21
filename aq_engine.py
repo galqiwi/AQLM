@@ -50,7 +50,8 @@ class AQEngine(nn.Module):
 
         quantized_weight.scales.data = torch.ones_like(quantized_weight.scales.data)
 
-        quantized_weight_value = quantized_weight()
+        XTX = XTX.double()
+        quantized_weight_value = quantized_weight().double()
         assert quantized_weight_value.shape == (out_size, in_size)
 
         quantized_weight_XTX = quantized_weight_value @ XTX
@@ -62,7 +63,9 @@ class AQEngine(nn.Module):
         )
         assert optimal_scales.shape == (out_size,)
 
-        quantized_weight.scales.data = optimal_scales.reshape(out_size, 1, 1, 1)
+        optimal_scales = optimal_scales.reshape(out_size, 1, 1, 1)
+        optimal_scales = optimal_scales.to(quantized_weight.scales.data.dtype)
+        quantized_weight.scales.data = optimal_scales
 
     def optimize_scales(self, devices, replicas, reference_weight):
         self._optimize_scales(self.quantized_weight, reference_weight, self.XTX)
