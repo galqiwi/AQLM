@@ -126,7 +126,7 @@ class AQEngine(nn.Module):
                     self.optimize_scales(
                         devices=args.devices,
                         replicas=replicas,
-                        reference_weight=self.quantized_weight,
+                        reference_weight=reference_weight,
                     )
 
                 if len(args.devices) == 1:
