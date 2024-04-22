@@ -95,6 +95,9 @@ class AQEngine(nn.Module):
         out_size, in_size = reference_weight.shape
         assert quantized_weight.scales.shape == (out_size, 1, 1, 1)
 
+        old_scales = quantized_weight.scales.data[:, 0, 0, 0]
+        assert old_scales.shape == (out_size,)
+
         quantized_weight.scales.data = torch.ones_like(quantized_weight.scales.data)
 
         XTX = XTX.double()
@@ -117,12 +120,14 @@ class AQEngine(nn.Module):
             f'optimal_scales={tensor_to_str(optimal_scales)}'
         )
 
-        optimal_scales = torch.nan_to_num(
-            optimal_scales,
-            nan=1.0,
-            posinf=1.0,
-            neginf=1.0,
-        )
+        optimal_scales[0] = float('nan')
+        optimal_scales[1] = float('+inf')
+        optimal_scales[2] = float('-inf')
+
+        nan_mask = ~torch.isfinite(optimal_scales)
+        if nan_mask.sum().item() != 0:
+            optimal_scales[nan_mask] = old_scales[nan_mask]
+            print(f'optimizer new_optimal_scales={tensor_to_str(optimal_scales)}')
 
         optimal_scales = optimal_scales.reshape(out_size, 1, 1, 1)
         optimal_scales = optimal_scales.to(quantized_weight.scales.data.dtype)
