@@ -113,12 +113,10 @@ class AQEngine(nn.Module):
         optimal_scales = optimal_scales_num / optimal_scales_denum
         assert optimal_scales.shape == (out_size,)
 
-        print(
-            'optimizer' +
-            f'optimal_scales_num={tensor_to_str(optimal_scales_num)},' +
-            f'optimal_scales_denum={tensor_to_str(optimal_scales_denum)}' +
-            f'optimal_scales={tensor_to_str(optimal_scales)}'
-        )
+        print(f'optimizer optimal_scales_num={tensor_to_str(optimal_scales_num)}')
+        print(f'optimizer optimal_scales_denum={tensor_to_str(optimal_scales_denum)}')
+        print(f'optimizer optimal_scales={tensor_to_str(optimal_scales)}')
+
 
         optimal_scales[0] = float('nan')
         optimal_scales[1] = float('+inf')
