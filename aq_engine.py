@@ -31,7 +31,7 @@ def tensor_to_str(x: torch.Tensor):
             features.append(f'min={x.min().item()}')
             features.append(f'max={x.max().item()}')
 
-        if not isinstance(x, torch.FloatTensor):
+        if not torch.is_floating_point(x):
             features.append(f'sum={x.sum().item()}')
             return features
 
