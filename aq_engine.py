@@ -14,6 +14,53 @@ from src.aq import QuantizedWeight
 from src.utils import ellipsis
 
 
+def tensor_to_str(x: torch.Tensor):
+    def get_non_finite_features(x: torch.Tensor):
+        features = []
+        n_nans = torch.isnan(x).sum().item()
+        if n_nans > 0:
+            features.append(f'n_nans={n_nans}')
+        n_infs = torch.isinf(x).sum().item()
+        if n_infs > 0:
+            features.append(f'n_infs={n_infs}')
+        return features
+
+    def get_finite_features(x: torch.Tensor):
+        features = []
+        if not x.dtype == torch.bool:
+            features.append(f'min={x.min().item()}')
+            features.append(f'max={x.max().item()}')
+
+        if not isinstance(x, torch.FloatTensor):
+            features.append(f'sum={x.sum().item()}')
+            return features
+
+        features.append(f'mean={x.mean().item()}')
+        if x.numel() > 1:
+            features.append(f'std={x.std().item()}')
+
+        n_zeroes = (x == 0.0).sum().item()
+        if n_zeroes > 0:
+            features.append(f'n_zeroes={n_zeroes}')
+
+        return features
+
+    def get_features(x: torch.Tensor):
+        features = []
+        features.append(f'shape={tuple(x.shape)}')
+
+        if (~torch.isfinite(x)).sum().item() > 0:
+            features.extend(get_non_finite_features(x))
+        else:
+            features.extend(get_finite_features(x))
+
+        features.append(f'dtype={x.dtype}')
+        features.append(f'device={x.device}')
+        return features
+
+    return 'Tensor(' + ', '.join(get_features(x)) + ')'
+
+
 class AQEngine(nn.Module):
     """A wrapper class that runs AQ training for a single linear layer. All the important math is in aq.py"""
 
@@ -57,11 +104,25 @@ class AQEngine(nn.Module):
         quantized_weight_XTX = quantized_weight_value @ XTX
         assert quantized_weight_XTX.shape == (out_size, in_size)
 
-        optimal_scales = (
-                (quantized_weight_XTX * reference_weight).sum(dim=1) /
-                (quantized_weight_XTX * quantized_weight_value).sum(dim=1)
-        )
+        optimal_scales_num = (quantized_weight_XTX * reference_weight).sum(dim=1)
+        optimal_scales_denum = (quantized_weight_XTX * quantized_weight_value).sum(dim=1)
+
+        optimal_scales = optimal_scales_num / optimal_scales_denum
         assert optimal_scales.shape == (out_size,)
+
+        print(
+            'optimizer' +
+            f'optimal_scales_num={tensor_to_str(optimal_scales_num)},' +
+            f'optimal_scales_denum={tensor_to_str(optimal_scales_denum)}' +
+            f'optimal_scales={tensor_to_str(optimal_scales)}'
+        )
+
+        optimal_scales = torch.nan_to_num(
+            optimal_scales,
+            nan=1.0,
+            posinf=1.0,
+            neginf=1.0,
+        )
 
         optimal_scales = optimal_scales.reshape(out_size, 1, 1, 1)
         optimal_scales = optimal_scales.to(quantized_weight.scales.data.dtype)
