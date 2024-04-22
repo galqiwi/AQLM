@@ -220,7 +220,7 @@ class AQEngine(nn.Module):
                 differentiable_parameters,
                 seed=seed,
                 beam_size=args.beam_size,
-                verbose=True,
+                verbose=False,
             )
         self.quantized_weight.scales.requires_grad = True
         return self.quantized_weight
