@@ -126,12 +126,13 @@ class AQEngine(nn.Module):
 
         nan_mask = ~torch.isfinite(optimal_scales)
         if nan_mask.sum().item() != 0:
-            optimal_scales[nan_mask] = old_scales[nan_mask]
+            optimal_scales[nan_mask] = old_scales[nan_mask].to(optimal_scales.dtype)
             print(f'optimizer new_optimal_scales={tensor_to_str(optimal_scales)}')
 
         optimal_scales = optimal_scales.reshape(out_size, 1, 1, 1)
         optimal_scales = optimal_scales.to(quantized_weight.scales.data.dtype)
-        quantized_weight.scales.data = optimal_scales
+
+        quantized_weight.scales.data = optimal_scales.to(old_scales.dtype)
 
     def optimize_scales(self, devices, replicas, reference_weight):
         self._optimize_scales(self.quantized_weight, reference_weight, self.XTX)
