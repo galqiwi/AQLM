@@ -107,6 +107,8 @@ class AQEngine(nn.Module):
         quantized_weight_XTX = quantized_weight_value @ XTX
         assert quantized_weight_XTX.shape == (out_size, in_size)
 
+        quantized_weight_XTX = quantized_weight_XTX / quantized_weight_XTX.abs().mean()
+
         optimal_scales_num = (quantized_weight_XTX * reference_weight).sum(dim=1)
         optimal_scales_denum = (quantized_weight_XTX * quantized_weight_value).sum(dim=1)
 
