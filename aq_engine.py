@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 import math
 import random
 from argparse import Namespace
@@ -101,32 +102,26 @@ class AQEngine(nn.Module):
         quantized_weight.scales.data = torch.ones_like(quantized_weight.scales.data)
 
         XTX = XTX.double()
+        assert XTX.shape == (in_size, in_size)
+
         quantized_weight_value = quantized_weight().double()
         assert quantized_weight_value.shape == (out_size, in_size)
 
         quantized_weight_XTX = quantized_weight_value @ XTX
         assert quantized_weight_XTX.shape == (out_size, in_size)
 
+        # for numerical stability
         quantized_weight_XTX = quantized_weight_XTX / quantized_weight_XTX.abs().mean()
 
-        optimal_scales_num = (quantized_weight_XTX * reference_weight).sum(dim=1)
-        optimal_scales_denum = (quantized_weight_XTX * quantized_weight_value).sum(dim=1)
-
-        optimal_scales = optimal_scales_num / optimal_scales_denum
+        optimal_scales = (
+            (quantized_weight_XTX * reference_weight).sum(dim=1) /
+            (quantized_weight_XTX * quantized_weight_value).sum(dim=1)
+        )
         assert optimal_scales.shape == (out_size,)
 
-        # optimal_scales[0] = float('nan')
-        # optimal_scales[1] = float('+inf')
-        # optimal_scales[2] = float('-inf')
-
-        print(f'optimizer optimal_scales_num={tensor_to_str(optimal_scales_num)}')
-        print(f'optimizer optimal_scales_denum={tensor_to_str(optimal_scales_denum)}')
-        print(f'optimizer optimal_scales={tensor_to_str(optimal_scales)}')
-
-        nan_mask = ~torch.isfinite(optimal_scales)
-        if nan_mask.sum().item() != 0:
-            optimal_scales[nan_mask] = old_scales[nan_mask].to(optimal_scales.dtype)
-            print(f'optimizer new_optimal_scales={tensor_to_str(optimal_scales)}')
+        if torch.isfinite(optimal_scales).sum().item() != optimal_scales.numel():
+            warnings.warn("optimized scales have non-finite values, reverting to old ones", RuntimeWarning)
+            optimal_scales = old_scales.to(optimal_scales.dtype)
 
         optimal_scales = optimal_scales.reshape(out_size, 1, 1, 1)
         optimal_scales = optimal_scales.to(quantized_weight.scales.data.dtype)
