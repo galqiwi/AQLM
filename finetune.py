@@ -97,7 +97,7 @@ def finetune(model, train_loader, train_hiddens, args, device, val_loader=None, 
         # prepare batch indices
         batch_indices_epoch = torch.randperm(num_samples)[:epoch_samples].chunk(microbatches_per_epoch)
 
-        for batch_indices in tqdm(batch_indices_epoch, desc=f"Train epoch {epoch}", leave=False):
+        for batch_indices_idx, batch_indices in tqdm(enumerate(batch_indices_epoch), desc=f"Train epoch {epoch}", leave=False, total=len(batch_indices_epoch)):
             # convert tensor to list
             batch_indices = batch_indices.tolist()
             inputs = _extract_into_tensor(train_loader, batch_indices, device=device)
@@ -126,35 +126,38 @@ def finetune(model, train_loader, train_hiddens, args, device, val_loader=None, 
 
             loss_numerator += loss.item()
             loss_denominator += 1
-        train_loss_epoch = loss_numerator / loss_denominator
+            if (batch_indices_idx + 1) % (len(batch_indices_epoch) // 3) == 0:
+                train_loss_epoch = loss_numerator / loss_denominator
 
-        if run_validation:
-            valid_loss_epoch = evaluate(
-                model, lm_head, val_loader, val_hiddens, args.microbatch_size, args.finetune_dtype
-            )
+                if run_validation:
+                    valid_loss_epoch = evaluate(
+                        model, lm_head, val_loader, val_hiddens, args.microbatch_size, args.finetune_dtype
+                    )
 
-        # log losses in the end of the epoch
-        print("-" * 10)
-        print(f"epoch={epoch}")
-        print(f"train loss={train_loss_epoch:.3e}\t")
-        if run_validation:
-            print(f"valid loss={valid_loss_epoch:.3e}\t")
+                # log losses in the end of the epoch
+                print("-" * 10)
+                print(f"epoch={epoch}")
+                print(f"train loss={train_loss_epoch:.3e}\t")
+                if run_validation:
+                    print(f"valid loss={valid_loss_epoch:.3e}\t")
 
-        if args.wandb:
-            wandb.log({"train_loss": train_loss_epoch}, step=epoch)
-            if run_validation:
-                wandb.log({"valid_loss": valid_loss_epoch}, step=epoch)
+                if args.wandb:
+                    wandb.log({"train_loss": train_loss_epoch}, step=epoch)
+                    if run_validation:
+                        wandb.log({"valid_loss": valid_loss_epoch}, step=epoch)
 
-        if run_validation:
-            if valid_loss_epoch < best_loss:
-                print(f"new best loss {valid_loss_epoch:.3e} on epoch {epoch}")
-                best_loss = valid_loss_epoch
-                best_params = deepcopy(diff_params)
-                worse_count = 0
-            else:
-                worse_count += 1
-                if worse_count >= args.early_stop:
-                    break
+                if run_validation:
+                    if valid_loss_epoch < best_loss:
+                        print(f"new best loss {valid_loss_epoch:.3e} on epoch {epoch}")
+                        best_loss = valid_loss_epoch
+                        best_params = deepcopy(diff_params)
+                        worse_count = 0
+                    else:
+                        worse_count += 1
+                        if worse_count >= args.early_stop:
+                            if run_validation:
+                                model.load_state_dict(best_params, strict=False)
+                            return
 
     if run_validation:
         model.load_state_dict(best_params, strict=False)
