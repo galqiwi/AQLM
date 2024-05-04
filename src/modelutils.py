@@ -10,7 +10,7 @@ from transformers import AutoConfig, AutoModelForCausalLM
 
 from src.aq import QuantizedWeight
 
-MODEL_ERROR_MSG = "Unsupported model type {} - only 'llama', 'Yi', 'opt' and 'falcon' are supported"
+MODEL_ERROR_MSG = "Unsupported model type {} - only 'llama', 'Yi', 'opt', 'falcon', 'phi3' are supported"
 FALCON_TYPES = ("falcon", "refinedweb", "refinedwebmodel")
 LLAMA_LIKE = ("llama", "Yi", "mistral", "mixtral", "gemma", "cohere")
 
@@ -86,7 +86,7 @@ def get_model(
 
 def get_model_head(model):
     head = torch.nn.ModuleList()
-    if model.config.model_type in LLAMA_LIKE:
+    if model.config.model_type in (*LLAMA_LIKE, "phi3"):
         if model.model.norm is not None:
             head.append(model.model.norm)
         head.append(model.lm_head)
@@ -106,7 +106,7 @@ def get_model_head(model):
 
 
 def get_lm_logits(inps_, model):
-    if model.config.model_type in LLAMA_LIKE:
+    if model.config.model_type in (*LLAMA_LIKE, "phi3"):
         hidden_states = inps_.unsqueeze(0)
         if model.model.norm is not None:
             hidden_states = model.model.norm(hidden_states)
@@ -129,7 +129,7 @@ def get_lm_logits(inps_, model):
 
 
 def get_layers(model):
-    if model.config.model_type in LLAMA_LIKE:
+    if model.config.model_type in (*LLAMA_LIKE, "phi3"):
         return model.model.layers
     elif model.config.model_type.lower() in FALCON_TYPES:
         return model.transformer.h
@@ -172,6 +172,8 @@ def get_sequential_groups(model):
             ["fc1"],
             ["fc2"],
         ]
+    elif model.config.model_type == "phi3":
+        return [["self_attn.qkv_proj"], ["self_attn.o_proj"], ["mlp.gate_up_proj"], ["mlp.down_proj"]]
     else:
         raise ValueError(MODEL_ERROR_MSG.format(model.config.model_type))
 
