@@ -6,6 +6,7 @@ from accelerate.hooks import remove_hook_from_submodules
 from main import perplexity_eval
 from src.datautils import get_loaders
 from src.modelutils import get_model
+from src.aq import QuantizedWeight
 
 
 if __name__ == "__main__":
@@ -130,6 +131,20 @@ if __name__ == "__main__":
     if args.device_map:
         remove_hook_from_submodules(quant_model)
     torch.cuda.empty_cache()
+
+    n_bits = 0.0
+    n_params = 0
+    for name, module in quant_model.named_modules():
+        if not isinstance(module, QuantizedWeight):
+            continue
+        n_bits += (
+            module.estimate_nbits_per_parameter() * module.in_features * module.out_features
+        )
+        n_params += module.in_features * module.out_features
+
+    print(f'n_bits_per_parameter: {n_bits / n_params}')
+    print(f'n_bits: {n_bits}')
+    print(f'n_params: {n_params}')
 
     print("\n============ Evaluating perplexity... ============")
     torch.cuda.reset_peak_memory_stats()
