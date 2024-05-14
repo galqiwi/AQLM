@@ -79,6 +79,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Whether to trust remote code.",
     )
+    parser.add_argument(
+        "--eval_base",
+        action="store_true",
+        help="Whether to eval base model.",
+    )
     args = parser.parse_args()
     # get device
     assert torch.cuda.is_available()
@@ -91,6 +96,25 @@ if __name__ == "__main__":
     orig_model = get_model(args.base_model, None, args.dtype, args.device_map, trust_remote_code=args.trust_remote_code)
     if not args.device_map:
         orig_model = orig_model.to(device)
+
+    if args.eval_base:
+        print("\n============ Evaluating perplexity (base)... ============")
+        torch.cuda.reset_peak_memory_stats()
+        for dataset in args.eval_datasets:
+            testloader = get_loaders(
+                dataset,
+                seed=args.seed,
+                model_path=args.base_model,
+                seqlen=args.eval_model_seqlen or args.model_seqlen,
+                eval_mode=True,
+                use_fast_tokenizer=args.use_fast_tokenizer,
+                trust_remote_code=args.trust_remote_code,
+            )
+            args.dataset_name = dataset
+            perplexity_eval(orig_model, testloader, args)
+            # make sure that the cache is released
+            torch.cuda.empty_cache()
+
     del orig_model
     # ???
 
