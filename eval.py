@@ -51,6 +51,11 @@ if __name__ == "__main__":
         "Note that the main training is not strictly deterministic.",
     )
     parser.add_argument(
+        "--offload_activations",
+        action="store_true",
+        help="Offload activations to RAM to save GPU memory.",
+    )
+    parser.add_argument(
         "--dtype",
         type=str,
         default="auto",
