@@ -51,11 +51,6 @@ if __name__ == "__main__":
         "Note that the main training is not strictly deterministic.",
     )
     parser.add_argument(
-        "--offload_activations",
-        action="store_true",
-        help="Offload activations to RAM to save GPU memory.",
-    )
-    parser.add_argument(
         "--dtype",
         type=str,
         default="auto",
@@ -84,6 +79,8 @@ if __name__ == "__main__":
     assert torch.cuda.is_available()
     device = "cuda"
     args.devices = [device]  # needed for perplexity eval
+
+    args.wandb = False
 
     # create original model
     orig_model = get_model(args.base_model, None, args.dtype, args.device_map, trust_remote_code=args.trust_remote_code)
