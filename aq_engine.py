@@ -61,6 +61,7 @@ class AQEngine(nn.Module):
             max_points_per_centroid=args.init_max_points_per_centroid,
             devices=args.devices,
             verbose=True,
+            lora_first=args.lora_first,
             lora_percentile=args.lora_percentile,
         )
 

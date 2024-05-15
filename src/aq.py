@@ -64,12 +64,39 @@ class QuantizedWeight(nn.Module):
         scale_nbits: int = 0,
         straight_through_gradient: Optional[bool] = None,
         lora_percentile: float = 1.0,
+        lora_first: bool = True,
         **init_kwargs,
     ):
         super().__init__()
+
         self.out_features, self.in_features = reference_weight.shape
         assert self.in_features % in_group_size == 0
         assert self.out_features % out_group_size == 0
+
+        self.lora_rank = int(round(
+            lora_percentile / 100 * (self.in_features * self.out_features) / (self.in_features + self.out_features)
+        ))
+
+        self.lora_rank = min(self.lora_rank, self.out_features)
+        self.lora_rank = min(self.lora_rank, self.in_features)
+        self.lora_rank = max(self.lora_rank, 1)
+
+        print(f'{self.lora_rank=} {self.out_features=} {self.in_features=}')
+
+        self.rrr_v = nn.Parameter(
+            torch.zeros((self.out_features, self.lora_rank), dtype=torch.float32, device=reference_weight.device),
+            requires_grad=True,
+        )
+        self.rrr_ut = nn.Parameter(
+            torch.zeros((self.lora_rank, self.in_features), dtype=torch.float32, device=reference_weight.device),
+            requires_grad=True,
+        )
+
+        if lora_first:
+            u, v = reduced_rank_regression_from_weight(XTX=XTX, W=reference_weight, rank=self.lora_rank)
+            self.rrr_v[...] = v
+            self.rrr_ut[...] = u.T
+            reference_weight = reference_weight - self.rrr_v @ self.rrr_ut
 
         self.out_group_size, self.in_group_size = out_group_size, in_group_size
         self.num_codebooks = num_codebooks
@@ -124,24 +151,6 @@ class QuantizedWeight(nn.Module):
         )  # [num_codebooks, codebook_size, out_group_size, in_group_size]
         self.codes = nn.Parameter(codes, requires_grad=False)  #  [num_out_groups, num_in_groups, num_codebooks]
 
-        self.lora_rank = int(round(
-            lora_percentile / 100 * (self.in_features * self.out_features) / (self.in_features + self.out_features)
-        ))
-
-        self.lora_rank = min(self.lora_rank, self.out_features)
-        self.lora_rank = min(self.lora_rank, self.in_features)
-        self.lora_rank = max(self.lora_rank, 1)
-
-        print(f'{self.lora_rank=} {self.out_features=} {self.in_features=}')
-
-        self.rrr_v = nn.Parameter(
-            torch.zeros((self.out_features, self.lora_rank), dtype=torch.float32, device=reference_weight.device),
-            requires_grad=True,
-        )
-        self.rrr_ut = nn.Parameter(
-            torch.zeros((self.lora_rank, self.in_features), dtype=torch.float32, device=reference_weight.device),
-            requires_grad=True,
-        )
 
     def get_codebooks(self) -> torch.Tensor:
         """Get quantization codebooks or reconstruct them from second level quantization (see codebook_values_nbits)"""
