@@ -85,20 +85,30 @@ class QuantizedWeight(nn.Module):
 
         print(f'{self.lora_rank=} {self.out_features=} {self.in_features=}')
 
-        self.rrr_v = nn.Parameter(
-            torch.zeros((self.out_features, self.lora_rank), dtype=torch.float32, device=reference_weight.device),
-            requires_grad=True,
-        )
-        self.rrr_ut = nn.Parameter(
-            torch.zeros((self.lora_rank, self.in_features), dtype=torch.float32, device=reference_weight.device),
-            requires_grad=True,
-        )
+
 
         if lora_first:
             u, v = reduced_rank_regression_from_weight(XTX=XTX, W=reference_weight, rank=self.lora_rank)
-            self.rrr_v[...] = v
-            self.rrr_ut[...] = u.T
+
+            self.rrr_v = nn.Parameter(
+                v,
+                requires_grad=True,
+            )
+            self.rrr_ut = nn.Parameter(
+                u.T,
+                requires_grad=True,
+            )
+
             reference_weight = reference_weight - self.rrr_v @ self.rrr_ut
+        else:
+            self.rrr_v = nn.Parameter(
+                torch.zeros((self.out_features, self.lora_rank), dtype=torch.float32, device=reference_weight.device),
+                requires_grad=True,
+            )
+            self.rrr_ut = nn.Parameter(
+                torch.zeros((self.lora_rank, self.in_features), dtype=torch.float32, device=reference_weight.device),
+                requires_grad=True,
+            )
 
         self.out_group_size, self.in_group_size = out_group_size, in_group_size
         self.num_codebooks = num_codebooks
