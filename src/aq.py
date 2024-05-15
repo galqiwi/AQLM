@@ -11,6 +11,8 @@ from src.kmeans import find_nearest_cluster, fit_faiss_kmeans, fit_kmeans, fit_k
 from src.utils import ellipsis, maybe_script
 
 
+
+@torch.no_grad()
 def reduced_rank_regression_from_weight(
         XTX: torch.Tensor, W: torch.Tensor, rank: int, *, svd_niter: Optional[int] = 100,
 ):
