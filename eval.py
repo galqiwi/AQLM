@@ -67,7 +67,7 @@ if __name__ == "__main__":
         "--device_map",
         type=str,
         default=None,
-        choices=[None, "auto"],
+        choices=[None, "cpu", "auto"],
         help="accelerate device map",
     )
     parser.add_argument(
