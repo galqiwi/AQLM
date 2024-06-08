@@ -191,6 +191,18 @@ def add_data_args(parser: argparse.ArgumentParser):
         help="Training dataset split name, e.g. 'train'",
     )
     parser.add_argument(
+        "--dataset_inner_name",
+        type=str,
+        default=None,
+        help="dataset name",
+    )
+    parser.add_argument(
+        "--dataset_n_chars",
+        type=int,
+        default=None,
+        help="n chars to keep in dataset",
+    )
+    parser.add_argument(
         "--cache_dir",
         type=str,
         default=None,
@@ -247,14 +259,39 @@ def add_data_args(parser: argparse.ArgumentParser):
 def prepare_training_dataset(args: argparse.Namespace, tokenizer: transformers.PreTrainedTokenizer) -> datasets.Dataset:
     if os.path.exists(args.dataset_name):
         dataset = datasets.load_from_disk(args.dataset_name)
+    else if args.dataset_n_chars is not None:
+        dataset = datasets.load_dataset(
+            args.dataset_name,
+            split=args.split,
+            name=args.dataset_inner_name,
+            cache_dir=args.cache_dir,
+            trust_remote_code=args.trust_remote_code,
+            streaming=True,
+        )
+        def i_dataset_head(dataset, n_chars, pbar=None, text_field_name = 'text'):
+            n_outputed_chars = 0
+            for sample in dataset:
+                n_new_chars = len(sample[text_field_name])
+                n_outputed_chars += n_new_chars
+                if pbar is not None:
+                    pbar.update(n_new_chars)
+                
+                yield sample
+                if n_outputed_chars >= n_chars:
+                    return
+
+        with tqdm(total=args.dataset_n_chars) as pbar:
+            dataset = datasets.Dataset.from_list(list(i_dataset_head(dataset, args.dataset_n_chars, pbar=pbar)))
     else:
         dataset = datasets.load_dataset(
             args.dataset_name,
             split=args.split,
+            name=args.dataset_inner_name,
             cache_dir=args.cache_dir,
             trust_remote_code=args.trust_remote_code,
             streaming=False,
         )
+
 
     def is_tokenized(dataset):
         return 'input_ids' in dataset.column_names
@@ -263,7 +300,8 @@ def prepare_training_dataset(args: argparse.Namespace, tokenizer: transformers.P
             print("Dataset already tokenized")
         return dataset
 
-    text_column_name = 'text' if 'text' in dataset.column_names else next(iter(dataset.column_names))
+    assert 'text' in dataset.column_names
+    text_column_name = 'text'
 
     if args.preprocessing_chunk_length is not None:
         dataset = dataset.map(
