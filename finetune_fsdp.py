@@ -259,7 +259,7 @@ def add_data_args(parser: argparse.ArgumentParser):
 def prepare_training_dataset(args: argparse.Namespace, tokenizer: transformers.PreTrainedTokenizer) -> datasets.Dataset:
     if os.path.exists(args.dataset_name):
         dataset = datasets.load_from_disk(args.dataset_name)
-    else if args.dataset_n_chars is not None:
+    elif args.dataset_n_chars is not None:
         dataset = datasets.load_dataset(
             args.dataset_name,
             split=args.split,
