@@ -8,6 +8,8 @@ import transformers
 from accelerate import dispatch_model
 from transformers import AutoConfig, AutoModelForCausalLM
 
+from src.aq import QuantizedWeight
+
 MODEL_ERROR_MSG = "Unsupported model type {} - only 'llama', 'Yi', 'opt' and 'falcon' are supported"
 FALCON_TYPES = ("falcon", "refinedweb", "refinedwebmodel")
 LLAMA_LIKE = ("llama", "Yi", "mistral", "mixtral", "gemma", "cohere")
@@ -48,7 +50,7 @@ def get_model(
         dtype = (
             AutoConfig.from_pretrained(model_path, trust_remote_code=trust_remote_code).torch_dtype or "auto"
         )  # force transformers 4.29.2 to follow the same rules as 4.30.x
-    else:
+    elif isinstance(dtype, str):
         dtype = getattr(torch, dtype)
 
     model_kwargs = {}
@@ -226,6 +228,10 @@ def load_dequantized_model(model, load_path):
         print("layer", layer_index)
         layer = layers[layer_index]
         quant_layer = torch.load(os.path.join(load_path, str(layer_index) + ".pth"), map_location="cpu")
+        for module in quant_layer.modules():
+            if isinstance(module, QuantizedWeight):
+                if not hasattr(module, 'codes_storage'):
+                    module.codes_storage = None  # backwards compatibility
         layers[layer_index] = load_linear_layers(layer, quant_layer, model)
     model.load_state_dict(torch.load(os.path.join(load_path, "not_quantized_weights.pt")), strict=False)
     return model
@@ -239,6 +245,11 @@ def load_quantized_model(model, load_path):
             os.path.join(load_path, str(layer_index) + ".pth"),
             map_location=model.model.layers[layer_index].input_layernorm.weight.device,
         )
+        for module in model.model.layers[layer_index].modules():
+            if isinstance(module, QuantizedWeight):
+                if not hasattr(module, 'codes_storage'):
+                    module.codes_storage = None  # backwards compatibility
+
     model.load_state_dict(torch.load(os.path.join(load_path, "not_quantized_weights.pt")), strict=False)
     return model
 
@@ -252,3 +263,12 @@ def save_not_quantized_weights(model: nn.Module, save_dir: str):
         name: param for name, param in model.named_parameters() if param not in already_saved_weights
     }
     torch.save(not_quantized_weights, os.path.join(save_dir, "not_quantized_weights.pt"))
+
+
+def save_quantized_model(model: transformers.PreTrainedModel, save_dir: str):
+    """Save dequantized model state in the same format as returned by AQLM calibration (main.py)"""
+    os.makedirs(save_dir, exist_ok=True)
+    for layer_index, layer in enumerate(get_layers(model)):
+        layer_save_path = os.path.join(save_dir, f"{layer_index}.pth")
+        torch.save(layer, layer_save_path)
+    save_not_quantized_weights(model, save_dir)
