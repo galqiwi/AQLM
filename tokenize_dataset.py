@@ -402,7 +402,6 @@ def main():
     parser = argparse.ArgumentParser(add_help=True)
     add_model_args(parser)
     add_data_args(parser)
-    add_finetuning_args(parser)
     args = parser.parse_args()
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(args.base_model)
