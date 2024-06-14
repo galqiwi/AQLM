@@ -128,6 +128,7 @@ def prepare_training_dataset(args: argparse.Namespace, tokenizer: transformers.P
         def i_dataset_head(dataset, n_chars, pbar=None, text_field_name = 'text'):
             n_outputed_chars = 0
             for sample in dataset:
+                assert text_field_name in sample, f'{text_field_name} not in {list(sample.keys())}'
                 n_new_chars = len(sample[text_field_name])
                 n_outputed_chars += n_new_chars
                 if pbar is not None:
