@@ -62,6 +62,13 @@ def add_data_args(parser: argparse.ArgumentParser):
         help="dataset name",
     )
     parser.add_argument(
+        "--text_field_name",
+        type=str,
+        default=None,
+        required=True,
+        help="text_field_name",
+    )
+    parser.add_argument(
         "--dataset_n_chars",
         type=int,
         default=None,
@@ -139,7 +146,7 @@ def prepare_training_dataset(args: argparse.Namespace, tokenizer: transformers.P
                     return
 
         with tqdm(total=args.dataset_n_chars) as pbar:
-            dataset = datasets.Dataset.from_list(list(i_dataset_head(dataset, args.dataset_n_chars, pbar=pbar)))
+            dataset = datasets.Dataset.from_list(list(i_dataset_head(dataset, args.dataset_n_chars, pbar=pbar, text_field_name=args.text_field_name)))
     else:
         dataset = datasets.load_dataset(
             args.dataset_name,
