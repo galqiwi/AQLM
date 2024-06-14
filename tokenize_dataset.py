@@ -165,8 +165,8 @@ def prepare_training_dataset(args: argparse.Namespace, tokenizer: transformers.P
             print("Dataset already tokenized")
         return dataset
 
-    assert 'text' in dataset.column_names
-    text_column_name = 'text'
+    assert args.text_field_name in dataset.column_names
+    text_column_name = args.text_field_name
 
     if args.preprocessing_chunk_length is not None:
         dataset = dataset.map(
