@@ -153,6 +153,8 @@ def populate_hf_files(args):
             continue
         if 'safetensors' in filename:
             continue
+        if filename == 'config.json':
+            continue
 
         filepath = os.path.join(base_model_path, filename)
         assert os.path.isfile(filepath)
