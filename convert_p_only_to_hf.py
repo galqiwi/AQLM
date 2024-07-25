@@ -47,7 +47,7 @@ class IntCodes(nn.Module):
         )[:self.numel].view(*self.shape)
 
 
-def get_hf_aqlm_state_dict_by_best_model_state_dict(best_model_state_dict, args):
+def get_hf_aqlm_state_dict_by_best_model_state_dict(best_model_state_dict, base_model_state_dict, args):
     output = {}
 
     for param_name, param_value in tqdm(best_model_state_dict.items()):
@@ -106,7 +106,11 @@ def save_pt_model(args):
         base_model_state_dict = base_model.state_dict()
 
     best_model_state_dict = torch.load(args.best_model_state_dict_path)
-    hf_aqlm_model_state_dict = get_hf_aqlm_state_dict_by_best_model_state_dict(best_model_state_dict, args)
+    hf_aqlm_model_state_dict = get_hf_aqlm_state_dict_by_best_model_state_dict(
+        best_model_state_dict,
+        base_model_state_dict,
+        args,
+    )
 
     linear_weights_not_to_quantize = get_linear_weights_not_to_quantize(
         base_model,
