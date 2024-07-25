@@ -128,6 +128,7 @@ def save_pt_model(args):
     }
     config['torch_dtype'] = 'float16'
 
+    os.makedirs(args.out_path, exist_ok=True)
     with open(os.path.join(args.out_path, "config.json"), "w") as config_file:
         json.dump(config, config_file, indent=4)
     torch.save(hf_aqlm_model_state_dict, os.path.join(args.out_path, "pytorch_model.bin"))
