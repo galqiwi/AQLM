@@ -135,10 +135,6 @@ def save_pt_model(args):
 
 
 def make_safetensors(args):
-    config_path = os.path.join(args.out_path, 'config.json')
-    with open(config_path, 'r') as file:
-        config_raw = file.read()
-    
     hf_model = AutoModelForCausalLM.from_pretrained(
         args.out_path,
         trust_remote_code=True,
@@ -147,9 +143,6 @@ def make_safetensors(args):
     )
     hf_model.save_pretrained(args.out_path)
     os.remove(os.path.join(args.out_path, "pytorch_model.bin"))
-
-    with open(config_path, 'w') as file:
-        file.write(config_raw)
 
 
 def populate_hf_files(args):
