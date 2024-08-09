@@ -55,7 +55,7 @@ def get_converted_state_dict(config, nbits: int, in_path: os.PathLike) -> [dict,
     layers_prefix = get_layers_prefix(config)
 
     for i in trange(num_layers):
-        layer = torch.load(os.path.join(in_path, f"{i}.pth"))
+        layer = torch.load(os.path.join(in_path, f"{i}.pth"), map_location=torch.device('cpu'))
         for name, p in layer.named_parameters():
             if torch.is_floating_point(p.data):
                 p.data = p.data.half()
@@ -67,7 +67,10 @@ def get_converted_state_dict(config, nbits: int, in_path: os.PathLike) -> [dict,
                 name = re.sub("quantized_weight.", "", name)
             state_dict[f"{layers_prefix}.{i}.{name}"] = p.data
 
-    for key, value in torch.load(os.path.join(in_path, "not_quantized_weights.pt")).items():
+    for key, value in torch.load(
+        os.path.join(in_path, "not_quantized_weights.pt"),
+        map_location=torch.device('cpu')
+    ).items():
         state_dict[key] = value.half()
         linear_weights_not_to_quantize.append(key)
 
