@@ -83,6 +83,11 @@ if __name__ == "__main__":
         default=["wikitext2", "c4"],
         help="Datasets to run evaluation on",
     )
+    parser.add_argument(
+        "--effective_wbits",
+        type=float,
+        default=1.0,
+    )
     # Misc params
     parser.add_argument(
         "--seed",
@@ -125,19 +130,33 @@ if __name__ == "__main__":
         action="store_true",
         help="Whether to eval base model.",
     )
+    parser.add_argument(
+        "--wandb",
+        action="store_true",
+        help="Whether to log to wandb.",
+    )
     args = parser.parse_args()
+
+    if args.wandb:
+        import wandb
+
+        wandb.init(project="aq", config=vars(args))
+
     # get device
     assert torch.cuda.is_available()
     device = "cuda"
     args.devices = [device]  # needed for perplexity eval
 
-    args.wandb = False
     orig_model = get_model(args.base_model, None, args.dtype, args.device_map,
                                trust_remote_code=args.trust_remote_code)
     if not args.device_map:
         orig_model = orig_model.to(device)
 
-    add_noisy_layers(orig_model.model.layers, 1.0)
+    noise_level = 4 ** (-effective_wbits)
+
+    add_noisy_layers(orig_model.model.layers, noise_level)
+    print(f'{args.noise_level=}')
+    print(f'{effective_wbits=}')
     print(orig_model)
 
     print("\n============ Evaluating perplexity (base)... ============")
@@ -156,3 +175,4 @@ if __name__ == "__main__":
         perplexity_eval(orig_model, testloader, args)
         # make sure that the cache is released
         torch.cuda.empty_cache()
+
