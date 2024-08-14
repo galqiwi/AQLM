@@ -111,7 +111,7 @@ if __name__ == "__main__":
         orig_model = orig_model.to(device)
 
 
-    add_noisy_layers(orig_model, 0)
+    add_noisy_layers(orig_model.model.layers, 0)
     print(orig_model)
 
     print("\n============ Evaluating perplexity (base)... ============")
