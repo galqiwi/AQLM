@@ -24,9 +24,9 @@ def add_noisy_layers(model, noise_level):
     for child_name, child in model.named_children():
         if not isinstance(child, torch.nn.Linear):
             add_noisy_layers(child, noise_level)
+            continue
 
         setattr(model, child_name, NoisyLinear(child.in_features, child.out_features, child.bias, noise_level))
-        continue
 
     return model
 
