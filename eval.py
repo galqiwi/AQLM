@@ -140,7 +140,7 @@ if __name__ == "__main__":
     if args.wandb:
         import wandb
 
-        wandb.init(project="aq", config=vars(args))
+        wandb.init(config=vars(args))
 
     # get device
     assert torch.cuda.is_available()
@@ -152,9 +152,10 @@ if __name__ == "__main__":
     if not args.device_map:
         orig_model = orig_model.to(device)
 
-    noise_level = 4 ** (-effective_wbits)
+    noise_level = 4 ** (-args.effective_wbits)
 
     add_noisy_layers(orig_model.model.layers, noise_level)
+    wandb.log({"noise_level": noise_level})
     print(f'{args.noise_level=}')
     print(f'{effective_wbits=}')
     print(orig_model)
@@ -175,4 +176,3 @@ if __name__ == "__main__":
         perplexity_eval(orig_model, testloader, args)
         # make sure that the cache is released
         torch.cuda.empty_cache()
-
