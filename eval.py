@@ -13,11 +13,11 @@ from src.aq import QuantizedWeight
 class NoisyLinear(torch.nn.Module):
     def __init__(self, in_features, out_features, bias, noise_level):
         super().__init__()
-        self.linear = torch.nn.Linear(in_features, out_features, bias)
+        self.inner = torch.nn.Linear(in_features, out_features, bias)
         self.noise_level = noise_level
 
     def forward(self, x):
-        return self.linear(x)
+        return self.inner(x)
 
 
 def add_noisy_layers(model, noise_level):
@@ -26,7 +26,10 @@ def add_noisy_layers(model, noise_level):
             add_noisy_layers(child, noise_level)
             continue
 
-        setattr(model, child_name, NoisyLinear(child.in_features, child.out_features, child.bias, noise_level))
+        new_linear = NoisyLinear(child.in_features, child.out_features, child.bias, noise_level)
+        new_linear.inner.weight = child.weight
+        new_linear.inner.bias = child.bias
+        setattr(model, child_name, new_linear)
 
     return model
 
