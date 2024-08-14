@@ -25,7 +25,7 @@ class NoisyHadamarLinear(torch.nn.Module):
         self.inner = torch.nn.Linear(self.in_features, self.out_features, bias=(bias is not None), dtype=weight.dtype,
                                      device=weight.device)
 
-        assert self.in_features % self.had_block_size == 0
+        assert self.in_features % self.had_block_size == 0, (self.in_features, self.had_block_size)
         weight = weight.reshape(self.out_features, self.in_features // self.had_block_size, self.had_block_size)
         weight = hadamard_transform(weight, scale=1 / (self.had_block_size ** 0.5))
         weight = weight.reshape(self.out_features, self.in_features)
