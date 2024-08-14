@@ -34,7 +34,8 @@ class NoisyHadamarLinear(torch.nn.Module):
         weight = weight + torch.randn_like(weight) * torch.norm(weight) * noise_level
 
         self.inner.weight.data = weight
-        self.inner.bias.data = bias
+        if bias is not None:
+            self.inner.bias.data = bias
 
     def forward(self, input):
         input_shape = input.shape
