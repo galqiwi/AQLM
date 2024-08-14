@@ -9,6 +9,16 @@ from src.modelutils import get_model
 from src.aq import QuantizedWeight
 
 
+class NoisyLinear(torch.nn.Module):
+    def __init__(self, in_features, out_features, noise_level):
+        super().__init__()
+        self.linear = torch.nn.Linear(in_features, out_features)
+        self.noise_level = noise_level
+
+    def forward(self, x):
+        return self.linear(x)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=True)
     # Model params
@@ -84,6 +94,11 @@ if __name__ == "__main__":
                                trust_remote_code=args.trust_remote_code)
     if not args.device_map:
         orig_model = orig_model.to(device)
+
+
+    for layer in orig_model.model.layers:
+        print(layer)
+
 
     print("\n============ Evaluating perplexity (base)... ============")
     torch.cuda.reset_peak_memory_stats()
