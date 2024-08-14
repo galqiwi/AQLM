@@ -10,14 +10,41 @@ from src.modelutils import get_model
 from src.aq import QuantizedWeight
 
 
-class NoisyLinear(torch.nn.Module):
-    def __init__(self, in_features, out_features, bias, noise_level):
+class NoisyHadamarLinear(torch.nn.Module):
+    def __init__(self, weight, bias, *, had_block_size = 1024, noise_level = 0):
         super().__init__()
-        self.inner = torch.nn.Linear(in_features, out_features, bias)
-        self.noise_level = noise_level
 
-    def forward(self, x):
-        return self.inner(x)
+        weight = weight.detach().clone()
+        if bias is not None:
+            bias = bias.detach().clone()
+
+        self.had_block_size = had_block_size
+
+        self.out_features, self.in_features = weight.shape
+
+        self.inner = torch.nn.Linear(self.in_features, self.out_features, bias=(bias is not None), dtype=weight.dtype,
+                                     device=weight.device)
+
+        assert self.in_features % self.had_block_size == 0
+        weight = weight.reshape(self.out_features, self.in_features // self.had_block_size, self.had_block_size)
+        weight = hadamard_transform(weight, scale=1 / (self.had_block_size ** 0.5))
+        weight = weight.reshape(self.out_features, self.in_features)
+
+        weight = weight + torch.randn_like(weight) * torch.norm(weight) * noise_level
+
+        self.inner.weight.data = weight
+        self.inner.bias.data = bias
+
+    def forward(self, input):
+        input_shape = input.shape
+
+        assert input.shape[-1] % self.had_block_size == 0
+
+        input = input.reshape(-1, self.had_block_size)
+        input = hadamard_transform(input, scale=1 / (self.had_block_size ** 0.5))
+        input = input.reshape(input_shape)
+
+        return self.inner(input)
 
 
 def add_noisy_layers(model, noise_level):
@@ -26,9 +53,7 @@ def add_noisy_layers(model, noise_level):
             add_noisy_layers(child, noise_level)
             continue
 
-        new_linear = NoisyLinear(child.in_features, child.out_features, child.bias, noise_level)
-        new_linear.inner.weight = child.weight
-        new_linear.inner.bias = child.bias
+        new_linear = NoisyHadamarLinear(child.weight, child.bias, noise_level=noise_level)
         setattr(model, child_name, new_linear)
 
     return model
@@ -109,7 +134,6 @@ if __name__ == "__main__":
                                trust_remote_code=args.trust_remote_code)
     if not args.device_map:
         orig_model = orig_model.to(device)
-
 
     add_noisy_layers(orig_model.model.layers, 0)
     print(orig_model)
