@@ -10,13 +10,24 @@ from src.aq import QuantizedWeight
 
 
 class NoisyLinear(torch.nn.Module):
-    def __init__(self, in_features, out_features, noise_level):
+    def __init__(self, in_features, out_features, bias, noise_level):
         super().__init__()
-        self.linear = torch.nn.Linear(in_features, out_features)
+        self.linear = torch.nn.Linear(in_features, out_features, bias)
         self.noise_level = noise_level
 
     def forward(self, x):
         return self.linear(x)
+
+
+def add_noisy_layers(model, noise_level):
+    for child_name, child in model.named_children():
+        if not isinstance(child, torch.nn.Linear):
+            add_noisy_layers(child, noise_level)
+
+        setattr(model, child_name, NoisyLinear(child.in_features, child.out_features, child.bias, noise_level))
+        continue
+
+    return model
 
 
 if __name__ == "__main__":
@@ -97,7 +108,7 @@ if __name__ == "__main__":
 
 
     for layer in orig_model.model.layers:
-        print(layer)
+
 
 
     print("\n============ Evaluating perplexity (base)... ============")
