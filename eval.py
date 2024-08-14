@@ -19,22 +19,10 @@ if __name__ == "__main__":
         help="path or name of the teacher model",
     )
     parser.add_argument(
-        "--quant_model",
-        type=str,
-        required=True,
-        help="path to quantized model",
-    )
-    parser.add_argument(
         "--model_seqlen",
         type=int,
         default=4096,
         help="Model seqlen and calibration data context length.",
-    )
-    parser.add_argument(
-        "--eval_model_seqlen",
-        type=int,
-        default=None,
-        help="Model seqlen on validation. By default is equal to model_seqlen.",
     )
     parser.add_argument(
         "--eval_datasets",
@@ -92,75 +80,24 @@ if __name__ == "__main__":
     args.devices = [device]  # needed for perplexity eval
 
     args.wandb = False
-
-
-    if args.eval_base:
-        orig_model = get_model(args.base_model, None, args.dtype, args.device_map,
+    orig_model = get_model(args.base_model, None, args.dtype, args.device_map,
                                trust_remote_code=args.trust_remote_code)
-        if not args.device_map:
-            orig_model = orig_model.to(device)
-
-        print("\n============ Evaluating perplexity (base)... ============")
-        torch.cuda.reset_peak_memory_stats()
-        for dataset in args.eval_datasets:
-            testloader = get_loaders(
-                dataset,
-                seed=args.seed,
-                model_path=args.base_model,
-                seqlen=args.eval_model_seqlen or args.model_seqlen,
-                eval_mode=True,
-                use_fast_tokenizer=args.use_fast_tokenizer,
-                trust_remote_code=args.trust_remote_code,
-            )
-            args.dataset_name = dataset
-            perplexity_eval(orig_model, testloader, args)
-            # make sure that the cache is released
-            torch.cuda.empty_cache()
-
-        del orig_model
-
-    torch.cuda.empty_cache()
-    quant_model = get_model(
-        args.base_model, args.quant_model, args.dtype, args.device_map, trust_remote_code=args.trust_remote_code
-    )
     if not args.device_map:
-        quant_model = quant_model.to(device)
+        orig_model = orig_model.to(device)
 
-    # offload model to cpu
-    quant_model = quant_model.cpu()
-    if args.device_map:
-        remove_hook_from_submodules(quant_model)
-    torch.cuda.empty_cache()
-
-    n_bits = 0.0
-    n_params = 0
-    for name, module in quant_model.named_modules():
-        if not isinstance(module, QuantizedWeight):
-            continue
-        n_bits += (
-            module.estimate_nbits_per_parameter() * module.in_features * module.out_features
-        )
-        n_params += module.in_features * module.out_features
-
-    print(f'n_bits_per_parameter: {n_bits / n_params}')
-    print(f'n_bits: {n_bits}')
-    print(f'n_params: {n_params}')
-
-    print("\n============ Evaluating perplexity... ============")
+    print("\n============ Evaluating perplexity (base)... ============")
     torch.cuda.reset_peak_memory_stats()
     for dataset in args.eval_datasets:
         testloader = get_loaders(
             dataset,
             seed=args.seed,
             model_path=args.base_model,
-            seqlen=args.eval_model_seqlen or args.model_seqlen,
+            seqlen=args.model_seqlen,
             eval_mode=True,
             use_fast_tokenizer=args.use_fast_tokenizer,
             trust_remote_code=args.trust_remote_code,
         )
         args.dataset_name = dataset
-        perplexity_eval(quant_model, testloader, args)
+        perplexity_eval(orig_model, testloader, args)
         # make sure that the cache is released
         torch.cuda.empty_cache()
-
-    print(f"eval: {torch.cuda.max_memory_allocated()=:,}")
