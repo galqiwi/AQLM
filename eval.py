@@ -157,7 +157,7 @@ if __name__ == "__main__":
     add_noisy_layers(orig_model.model.layers, noise_level)
     wandb.log({"noise_level": noise_level})
     print(f'{noise_level=}')
-    print(f'{effective_wbits=}')
+    print(f'{args.effective_wbits=}')
     print(orig_model)
 
     print("\n============ Evaluating perplexity (base)... ============")
