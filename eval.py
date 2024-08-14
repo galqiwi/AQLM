@@ -3,6 +3,7 @@ import argparse
 import torch
 from accelerate.hooks import remove_hook_from_submodules
 
+from finetune import print_memory_stats
 from main import perplexity_eval
 from src.datautils import get_loaders
 from src.modelutils import get_model
@@ -108,7 +109,7 @@ if __name__ == "__main__":
 
 
     add_noisy_layers(orig_model, 0)
-
+    print(orig_model)
 
     print("\n============ Evaluating perplexity (base)... ============")
     torch.cuda.reset_peak_memory_stats()
