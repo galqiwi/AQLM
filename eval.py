@@ -53,7 +53,7 @@ def add_noisy_layers(model, noise_level):
             add_noisy_layers(child, noise_level)
             continue
 
-        new_linear = NoisyHadamarLinear(child.weight, child.bias, noise_level=noise_level)
+        new_linear = NoisyHadamarLinear(child.weight, child.bias, had_block_size=64, noise_level=noise_level)
         setattr(model, child_name, new_linear)
 
     return model
