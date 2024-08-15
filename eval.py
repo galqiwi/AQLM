@@ -31,7 +31,7 @@ class NoisyHadamarLinear(torch.nn.Module):
         weight = hadamard_transform(weight, scale=1 / (self.had_block_size ** 0.5))
         weight = weight.reshape(self.out_features, self.in_features)
 
-        weight = weight + torch.randn_like(weight) * torch.norm(weight) / weight.numel() * noise_level
+        weight = weight + torch.randn_like(weight) * torch.norm(weight) / (weight.numel() ** 0.5) * noise_level
 
 
 
