@@ -12,7 +12,7 @@ from fast_hadamard_transform import hadamard_transform
 
 
 class NoisyHadamarLinear(torch.nn.Module):
-    def __init__(self, weight, bias, *, had_block_size = 1024, noise_level = 0):
+    def __init__(self, weight, bias, *, had_block_size = 1024, relative_mse = 0):
         super().__init__()
 
         weight = weight.detach().clone()
@@ -31,7 +31,7 @@ class NoisyHadamarLinear(torch.nn.Module):
         weight = hadamard_transform(weight, scale=1 / (self.had_block_size ** 0.5))
         weight = weight.reshape(self.out_features, self.in_features)
 
-        weight = weight + torch.randn_like(weight) * torch.norm(weight) / (weight.numel() ** 0.5) * noise_level
+        weight = weight + torch.randn_like(weight) * torch.norm(weight) * (relative_mse ** 0.5) / (weight.numel() ** 0.5)
 
 
 
@@ -51,13 +51,13 @@ class NoisyHadamarLinear(torch.nn.Module):
         return self.inner(input)
 
 
-def add_noisy_layers(model, noise_level):
+def add_noisy_layers(model, relative_mse):
     for child_name, child in model.named_children():
         if not isinstance(child, torch.nn.Linear):
-            add_noisy_layers(child, noise_level)
+            add_noisy_layers(child, relative_mse)
             continue
 
-        new_linear = NoisyHadamarLinear(child.weight, child.bias, had_block_size=64, noise_level=noise_level)
+        new_linear = NoisyHadamarLinear(child.weight, child.bias, had_block_size=64, relative_mse=relative_mse)
         setattr(model, child_name, new_linear)
 
     return model
@@ -154,13 +154,13 @@ if __name__ == "__main__":
     if not args.device_map:
         orig_model = orig_model.to(device)
 
-    noise_level = 4 ** (-args.effective_wbits)
+    relative_mse = 4 ** (-args.effective_wbits)
 
-    add_noisy_layers(orig_model.model.layers, noise_level)
+    add_noisy_layers(orig_model.model.layers, relative_mse=relative_mse)
     if args.wandb:
-        wandb.log({"noise_level": noise_level})
+        wandb.log({"relative_mse": relative_mse})
     print(f'{args.effective_wbits=}')
-    print(f'{noise_level=}')
+    print(f'{relative_mse=}')
     print(orig_model)
 
     print("\n============ Evaluating perplexity (base)... ============")
