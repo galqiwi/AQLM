@@ -112,19 +112,19 @@ if __name__ == "__main__":
     device = "cuda"
     args.devices = [device]  # needed for perplexity eval
 
-    orig_model = get_model(args.base_model, None, args.dtype, args.device_map,
+    model = get_model(args.base_model, None, args.dtype, args.device_map,
                                trust_remote_code=args.trust_remote_code)
     if not args.device_map:
-        orig_model = orig_model.to(device)
+        model = model.to(device)
 
     relative_mse = 4 ** (-args.effective_wbits)
     if args.wandb:
         wandb.log({"relative_mse": relative_mse})
 
-    add_noisy_layers(orig_model.model.layers, relative_mse=relative_mse)
+    add_noisy_layers(model.model.layers, relative_mse=relative_mse)
 
     lm_eval_model = lm_eval.models.huggingface.HFLM(
-        pretrained=torch.load('model.pt', map_location='cuda'),
+        pretrained=model,
     )
 
     tasks = lm_eval.tasks.get_task_dict(args.tasks)
