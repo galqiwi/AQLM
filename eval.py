@@ -118,5 +118,5 @@ if __name__ == "__main__":
 
     add_noisy_layers(orig_model.model.layers, relative_mse=relative_mse)
 
-    orig_model.save('model.py')
+    torch.save(orig_model, 'model.py')
 
