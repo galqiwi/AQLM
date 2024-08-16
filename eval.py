@@ -136,6 +136,8 @@ if __name__ == "__main__":
     if args.num_fewshots != 1:
         for task_name in tasks:
             task = tasks[task_name]
+            if isinstance(task, tuple):
+                task = task[1]
             if task is None:
                 continue
             task.config.num_fewshot = args.num_fewshots
