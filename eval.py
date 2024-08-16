@@ -117,7 +117,11 @@ if __name__ == "__main__":
     if not args.device_map:
         model = model.to(device)
 
-    relative_mse = 4 ** (-args.effective_wbits)
+    if args.effective_wbits == -1.0:
+        relative_mse = 0.0
+    else:
+        relative_mse = 4 ** (-args.effective_wbits)
+
     if args.wandb:
         wandb.log({"relative_mse": relative_mse})
 
