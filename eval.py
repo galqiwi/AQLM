@@ -127,10 +127,17 @@ if __name__ == "__main__":
         pretrained=torch.load('model.pt', map_location='cuda'),
     )
 
+    tasks = lm_eval.tasks.get_task_dict(args.tasks)
+    if args.num_fewshots != 1:
+        for task_name in tasks:
+            task = tasks[task_name][1]
+            if task is None:
+                continue
+            task.config.num_fewshot = args.num_fewshots
+
     results = evaluator.evaluate(
         lm=lm_eval_model,
         task_dict=lm_eval.tasks.get_task_dict(args.tasks),
-        # num_fewshots=args.num_fewshots,
     )
 
     result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
