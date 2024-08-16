@@ -122,6 +122,7 @@ if __name__ == "__main__":
     else:
         relative_mse = 4 ** (-args.effective_wbits)
 
+    print(f'{relative_mse=}')
     if args.wandb:
         wandb.log({"relative_mse": relative_mse})
 
