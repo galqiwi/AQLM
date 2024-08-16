@@ -56,6 +56,12 @@ if __name__ == "__main__":
         "Note that the main training is not strictly deterministic.",
     )
     parser.add_argument(
+        "--num_fewshots",
+        type=int,
+        default=1,
+        help="number of fewshots for tasks",
+    )
+    parser.add_argument(
         "--offload_activations",
         action="store_true",
         help="Offload activations to RAM to save GPU memory.",
@@ -122,6 +128,7 @@ if __name__ == "__main__":
     results = evaluator.evaluate(
         lm=lm_eval_model,
         task_dict=lm_eval.tasks.get_task_dict(args.tasks),
+        num_fewshots=args.num_fewshots,
     )
 
     result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
