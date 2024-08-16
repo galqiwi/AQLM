@@ -8,7 +8,6 @@ from main import perplexity_eval
 from src.datautils import get_loaders
 from src.modelutils import get_model
 from src.aq import QuantizedWeight
-from fast_hadamard_transform import hadamard_transform
 from noise import NoisyHadamarLinear
 
 

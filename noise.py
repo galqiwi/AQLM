@@ -1,4 +1,5 @@
 import torch
+from fast_hadamard_transform import hadamard_transform
 
 class NoisyHadamarLinear(torch.nn.Module):
     def __init__(self, weight, bias, *, had_block_size = 1024, relative_mse = 0):
