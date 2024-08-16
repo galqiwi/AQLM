@@ -10,6 +10,8 @@ from tqdm import trange
 from tqdm.auto import trange
 from transformers import PreTrainedModel
 
+from noise import NoisyHadamarLinear
+
 from aq_engine import AQEngine
 from src.aq import QuantizedLinear
 from src.datautils import get_loaders
@@ -32,6 +34,18 @@ try:
     has_wandb = True
 except ModuleNotFoundError:
     has_wandb = False
+
+
+def add_noisy_layers(model, relative_mse):
+    for child_name, child in model.named_children():
+        if not isinstance(child, torch.nn.Linear):
+            add_noisy_layers(child, relative_mse)
+            continue
+
+        new_linear = NoisyHadamarLinear(child.weight, child.bias, had_block_size=64, relative_mse=relative_mse)
+        setattr(model, child_name, new_linear)
+
+    return model
 
 
 def quantize_model(model: PreTrainedModel, args: Namespace):
@@ -886,6 +900,8 @@ def main():
         attn_implementation=args.attn_implementation,
         trust_remote_code=args.trust_remote_code,
     ).train(False)
+
+    add_noisy_layers(model.model.layers, relative_mse=0.0)
 
     if not args.load and not args.no_quant:
         print("\n============ Quantizing model... ============")
