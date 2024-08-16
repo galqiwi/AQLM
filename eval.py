@@ -130,7 +130,7 @@ if __name__ == "__main__":
     tasks = lm_eval.tasks.get_task_dict(args.tasks)
     if args.num_fewshots != 1:
         for task_name in tasks:
-            task = tasks[task_name][1]
+            task = tasks[task_name]
             if task is None:
                 continue
             task.config.num_fewshot = args.num_fewshots
