@@ -148,6 +148,8 @@ if __name__ == "__main__":
     )
 
     result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
+    result_err_dict = {f'{task_name}_err': task_result['acc_stderr,none'] for task_name, task_result in results['results'].items()}
+    result_dict = dict(list(result_dict.items()) + list(result_err_dict.items()))
 
     if args.num_fewshots != 1:
         result_dict = {f'{task_name}@{args.num_fewshots}': acc for task_name, acc in result_dict.items()}
