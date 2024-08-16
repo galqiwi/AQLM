@@ -12,6 +12,7 @@ from noise import NoisyHadamarLinear
 from lm_eval import evaluator
 import lm_eval.models.huggingface
 import lm_eval.tasks
+import requests
 
 
 def add_noisy_layers(model, relative_mse):
@@ -26,7 +27,7 @@ def add_noisy_layers(model, relative_mse):
     return model
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(add_help=True)
     # Model params
     parser.add_argument(
@@ -159,3 +160,12 @@ if __name__ == "__main__":
 
     if args.wandb:
         wandb.log(result_dict)
+
+
+if __name__ == '__main__':
+    while True:
+        try:
+            main()
+            break
+        except requests.exceptions.SSLError:
+            pass
