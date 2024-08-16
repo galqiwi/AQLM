@@ -149,6 +149,9 @@ if __name__ == "__main__":
 
     result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
 
+    if args.num_fewshots != 1:
+        result_dict = {f'{task_name}@{args.num_fewshots}': acc for task_name, acc in result_dict.items()}
+
     for task_name, acc in result_dict.items():
         print(f'{task_name}: {acc}')
 
