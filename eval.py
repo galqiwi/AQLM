@@ -36,17 +36,11 @@ if __name__ == "__main__":
         help="path or name of the teacher model",
     )
     parser.add_argument(
-        "--model_seqlen",
-        type=int,
-        default=4096,
-        help="Model seqlen and calibration data context length.",
-    )
-    parser.add_argument(
-        "--eval_datasets",
+        "--tasks",
         nargs="+",
         type=str,
-        default=["wikitext2", "c4"],
-        help="Datasets to run evaluation on",
+        default=["arc_easy",],
+        help="Tasks to run evaluation on",
     )
     parser.add_argument(
         "--effective_wbits",
@@ -127,7 +121,7 @@ if __name__ == "__main__":
 
     results = evaluator.evaluate(
         lm=lm_eval_model,
-        task_dict=lm_eval.tasks.get_task_dict(['arc_easy']),
+        task_dict=lm_eval.tasks.get_task_dict(args.tasks),
     )
 
     result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
