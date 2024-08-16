@@ -130,8 +130,10 @@ if __name__ == "__main__":
         task_dict=lm_eval.tasks.get_task_dict(['arc_easy']),
     )
 
-    arc_easy_acc = results['results']['arc_easy']['acc,none']
-    print(f'{arc_easy_acc=}')
+    result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
+
+    for task_name, acc in result_dict.items():
+        print(f'{task_name}: {acc}')
 
     if args.wandb:
-        wandb.log({'arc_easy': arc_easy_acc})
+        wandb.log(result_dict)
