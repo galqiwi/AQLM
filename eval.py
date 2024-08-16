@@ -9,6 +9,9 @@ from src.datautils import get_loaders
 from src.modelutils import get_model
 from src.aq import QuantizedWeight
 from noise import NoisyHadamarLinear
+from lm_eval import evaluator
+import lm_eval.models.huggingface
+import lm_eval.tasks
 
 
 def add_noisy_layers(model, relative_mse):
@@ -118,5 +121,17 @@ if __name__ == "__main__":
 
     add_noisy_layers(orig_model.model.layers, relative_mse=relative_mse)
 
-    torch.save(orig_model, 'model.pt')
+    lm_eval_model = lm_eval.models.huggingface.HFLM(
+        pretrained=torch.load('model.pt', map_location='cuda'),
+    )
 
+    results = evaluator.evaluate(
+        lm=lm_eval_model,
+        task_dict=lm_eval.tasks.get_task_dict(['arc_easy']),
+    )
+
+    arc_easy_acc = results['results']['arc_easy']['acc,none']
+    print(f'{arc_easy_acc=}')
+
+    if args.wandb:
+        wandb.log({'arc_easy': arc_easy_acc})
