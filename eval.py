@@ -130,7 +130,7 @@ if __name__ == "__main__":
     results = evaluator.evaluate(
         lm=lm_eval_model,
         task_dict=lm_eval.tasks.get_task_dict(args.tasks),
-        num_fewshots=args.num_fewshots,
+        # num_fewshots=args.num_fewshots,
     )
 
     result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
