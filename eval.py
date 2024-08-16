@@ -147,8 +147,6 @@ if __name__ == "__main__":
         task_dict=lm_eval.tasks.get_task_dict(args.tasks),
     )
 
-    print(results['results'])
-
     result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
 
     if args.num_fewshots != 1:
