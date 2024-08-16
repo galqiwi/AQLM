@@ -118,6 +118,8 @@ if __name__ == "__main__":
         orig_model = orig_model.to(device)
 
     relative_mse = 4 ** (-args.effective_wbits)
+    if args.wandb:
+        wandb.log({"relative_mse": relative_mse})
 
     add_noisy_layers(orig_model.model.layers, relative_mse=relative_mse)
 
