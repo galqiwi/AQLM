@@ -16,6 +16,10 @@ class NoisyHadamarLinear(torch.nn.Module):
         self.inner = torch.nn.Linear(self.in_features, self.out_features, bias=(bias is not None), dtype=weight.dtype,
                                      device=weight.device)
 
+        weight_device = weight.device
+        if weight_device == torch.device('cpu'):
+            weight.to('cuda:0')
+
         assert self.in_features % self.had_block_size == 0, (self.in_features, self.had_block_size)
         weight = weight.reshape(self.out_features, self.in_features // self.had_block_size, self.had_block_size)
         weight = hadamard_transform(weight, scale=1 / (self.had_block_size ** 0.5))
@@ -23,7 +27,7 @@ class NoisyHadamarLinear(torch.nn.Module):
 
         weight = weight + torch.randn_like(weight) * torch.norm(weight) * (relative_mse ** 0.5) / (weight.numel() ** 0.5)
 
-
+        weight.to(weight_device)
 
         self.inner.weight.data = weight
         if bias is not None:
