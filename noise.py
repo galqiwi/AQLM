@@ -18,7 +18,7 @@ class NoisyHadamarLinear(torch.nn.Module):
 
         weight_device = weight.device
         if weight_device == torch.device('cpu'):
-            weight.to('cuda:0')
+            weight = weight.to('cuda:0')
 
         print(weight_device, weight.device == torch.device('cpu'))
 
