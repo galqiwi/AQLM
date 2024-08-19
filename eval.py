@@ -21,7 +21,7 @@ def add_noisy_layers(model, relative_mse):
             add_noisy_layers(child, relative_mse)
             continue
 
-        new_linear = NoisyHadamarLinear(child.weight, child.bias, had_block_size=64, relative_mse=relative_mse)
+        new_linear = NoisyLinear(child.weight, child.bias, relative_mse=relative_mse)
         setattr(model, child_name, new_linear)
 
     return model
