@@ -276,27 +276,27 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
                     else:
                         args.num_codebooks = num_codebooks
                     print(sublayer_name.lower(), " mixtral num codebooks", args.num_codebooks)
-                quantized_weight = aq_handlers[sublayer_name].quantize(args=args, verbose=True)
+                # quantized_weight = aq_handlers[sublayer_name].quantize(args=args, verbose=True)
 
-                with torch.no_grad():
-                    assert aq_handlers[sublayer_name].layer.weight in set(
-                        layer.parameters()
-                    )  # test that this is not a replica
+                # with torch.no_grad():
+                #     assert aq_handlers[sublayer_name].layer.weight in set(
+                #         layer.parameters()
+                #     )  # test that this is not a replica
+                #
+                #     new_linear = QuantizedLinear(quantized_weight, aq_handlers[sublayer_name].layer.bias)
+                #     if args.use_checkpointing:
+                #         new_linear.use_checkpoint = True
+                #         print("ENABLED CHECKPOINTING FOR", sublayer_name)
+                #     found_original = False
+                #     for submodule in layer.modules():
+                #         for child_name, child_module in submodule.named_children():
+                #             if child_module is aq_handlers[sublayer_name].layer:
+                #                 setattr(submodule, child_name, new_linear)
+                #                 found_original = True  # note: do not break to handle tied layers
+                #
+                #     assert found_original, f"could not find {sublayer_name}"
 
-                    new_linear = QuantizedLinear(quantized_weight, aq_handlers[sublayer_name].layer.bias)
-                    if args.use_checkpointing:
-                        new_linear.use_checkpoint = True
-                        print("ENABLED CHECKPOINTING FOR", sublayer_name)
-                    found_original = False
-                    for submodule in layer.modules():
-                        for child_name, child_module in submodule.named_children():
-                            if child_module is aq_handlers[sublayer_name].layer:
-                                setattr(submodule, child_name, new_linear)
-                                found_original = True  # note: do not break to handle tied layers
-
-                    assert found_original, f"could not find {sublayer_name}"
-
-                weight_avg_bits = quantized_weight.estimate_nbits_per_parameter()
+                weight_avg_bits = 0 # quantized_weight.estimate_nbits_per_parameter()
                 overall_bits += int(weight_avg_bits * torch.numel(aq_handlers[sublayer_name].layer.weight.data))
                 number_of_quantized_params += torch.numel(aq_handlers[sublayer_name].layer.weight.data)
                 print("curent_avg_bits", overall_bits / number_of_quantized_params)
@@ -308,16 +308,16 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
             print("PREPARING TO FINETUNE")
             print(layer)
             layer = layer.to(dtype=torch.float32)
-            with using_tf32(enabled=True):
-                layer = finetune_groupwise(
-                    layer=layer,
-                    train_inps=inps,
-                    train_outs=outs,
-                    args=args,
-                    valid_inps=val_inps,
-                    valid_outs=val_outs,
-                    **forward_args,
-                )
+            # with using_tf32(enabled=True):
+            #     layer = finetune_groupwise(
+            #         layer=layer,
+            #         train_inps=inps,
+            #         train_outs=outs,
+            #         args=args,
+            #         valid_inps=val_inps,
+            #         valid_outs=val_outs,
+            #         **forward_args,
+            #     )
             layer = layer.to(dtype=layer_dtype_original)
             print("FINISHED FINETUNING")
 
