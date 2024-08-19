@@ -180,6 +180,9 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
     assert not torch.backends.cuda.matmul.allow_tf32
     print("\nStarting AQ quantization ...")
     inps, forward_args = get_inps(model, data, args.model_seqlen, args.devices, args.offload_activations)
+
+    print(forward_args.keys())
+
     outs = [torch.zeros_like(inp_tensor, pin_memory=inp_tensor.is_pinned()) for inp_tensor in inps]
 
     if val_data:
