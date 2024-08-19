@@ -200,8 +200,6 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
     number_of_quantized_params = 0
     layers = get_layers(model)
 
-    print(inps)
-
     for layer_index in range(len(layers)):
         print(f"\n---------------- Layer {layer_index} of {len(layers)} ----------------")
         stats_payload = {}
@@ -369,6 +367,9 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
             wandb.log(stats_payload, step=layer_index)
         if not loaded_layer:
             print(stats_payload)
+
+    torch.save(inps, 'inps.pt')
+    torch.save(outs, 'outs.pt')
 
     print("=====================\nFinal stats:")
     if args.save:
