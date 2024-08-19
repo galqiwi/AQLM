@@ -901,7 +901,7 @@ def main():
         trust_remote_code=args.trust_remote_code,
     ).train(False)
 
-    add_noisy_layers(model.model.layers, relative_mse=0.0)
+    # add_noisy_layers(model.model.layers, relative_mse=0.0)
     print(model)
 
     if not args.load and not args.no_quant:
