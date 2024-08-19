@@ -8,7 +8,7 @@ from main import perplexity_eval
 from src.datautils import get_loaders
 from src.modelutils import get_model
 from src.aq import QuantizedWeight
-from noise import NoisyHadamarLinear
+from noise import NoisyLinear
 from lm_eval import evaluator
 import lm_eval.models.huggingface
 import lm_eval.tasks
