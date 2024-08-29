@@ -162,7 +162,7 @@ if __name__ == "__main__":
 
     relative_mse = 4 ** (-args.effective_wbits)
 
-    add_noisy_layers(orig_model.model.layers, relative_mse=relative_mse)
+    add_noisy_layers(orig_model.model.layers[args.layer_idx], relative_mse=relative_mse)
     if args.wandb:
         wandb.log({"relative_mse": relative_mse})
     print(f'{args.effective_wbits=}')
