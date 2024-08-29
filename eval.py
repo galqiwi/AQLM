@@ -137,6 +137,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Whether to log to wandb.",
     )
+    parser.add_argument(
+        "--layer_idx",
+        type=int,
+        default=0,
+        help="layer to add noise to",
+    )
     args = parser.parse_args()
 
     if args.wandb:
