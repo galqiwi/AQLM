@@ -8,10 +8,9 @@ from main import perplexity_eval
 from src.datautils import get_loaders
 from src.modelutils import get_model
 from src.aq import QuantizedWeight
-from fast_hadamard_transform import hadamard_transform
 
 
-class NoisyHadamarLinear(torch.nn.Module):
+class NoisyLinear(torch.nn.Module):
     def __init__(self, weight, bias, *, had_block_size = 1024, relative_mse = 0):
         super().__init__()
 
@@ -28,7 +27,6 @@ class NoisyHadamarLinear(torch.nn.Module):
 
         assert self.in_features % self.had_block_size == 0, (self.in_features, self.had_block_size)
         weight = weight.reshape(self.out_features, self.in_features // self.had_block_size, self.had_block_size)
-        weight = hadamard_transform(weight, scale=1 / (self.had_block_size ** 0.5))
         weight = weight.reshape(self.out_features, self.in_features)
 
         weight = weight + torch.randn_like(weight) * torch.norm(weight) * (relative_mse ** 0.5) / (weight.numel() ** 0.5)
@@ -49,6 +47,22 @@ class NoisyHadamarLinear(torch.nn.Module):
         input = input.reshape(input_shape)
 
         return self.inner(input)
+
+
+def get_module_by_path(model, path):
+    if path == '':
+        return model
+    splitted = path.split('.', 1)
+    if len(splitted) == 1:
+        splitted.append('')
+    next_name, suffix = splitted
+
+    try:
+        next_module = model[int(next_name)]
+    except:
+        next_module = getattr(model, next_name)
+
+    return get_module_by_path(next_module, suffix)
 
 
 def add_noisy_layers(model, relative_mse):
@@ -138,9 +152,9 @@ if __name__ == "__main__":
         help="Whether to log to wandb.",
     )
     parser.add_argument(
-        "--layer_idx",
-        type=int,
-        default=0,
+        "--layer_name",
+        type=str,
+        default=None,
         help="layer to add noise to",
     )
     args = parser.parse_args()
@@ -162,7 +176,16 @@ if __name__ == "__main__":
 
     relative_mse = 4 ** (-args.effective_wbits)
 
-    add_noisy_layers(orig_model.model.layers[args.layer_idx], relative_mse=relative_mse)
+    layer_name_parts = args.layer_name.split('.')
+
+    parent = get_module_by_path(orig_model, '.'.join(layer_name_parts[:-1]))
+
+    child = get_module_by_path(orig_model, args.layer_name)
+    assert isinstance(child, torch.nn.Linear)
+
+    new_linear = NoisyHadamarLinear(child.weight, child.bias, had_block_size=64, relative_mse=relative_mse)
+    setattr(parent, layer_name_parts[-1], new_linear)
+
     if args.wandb:
         wandb.log({"relative_mse": relative_mse})
     print(f'{args.effective_wbits=}')
