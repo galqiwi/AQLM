@@ -168,7 +168,7 @@ if __name__ == "__main__":
     child = get_module_by_path(orig_model, args.layer_name)
     assert isinstance(child, torch.nn.Linear)
 
-    new_linear = NoisyLinear(child.weight, child.bias, had_block_size=64, relative_mse=relative_mse)
+    new_linear = NoisyLinear(child.weight, child.bias, relative_mse=relative_mse)
     setattr(parent, layer_name_parts[-1], new_linear)
 
     if args.wandb:
