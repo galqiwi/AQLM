@@ -34,6 +34,41 @@ except ModuleNotFoundError:
     has_wandb = False
 
 
+CONFIG = [(2, 10),
+ (2, 16),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 14),
+ (1, 14),
+ (1, 14),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 15),
+ (1, 14),
+ (1, 14),
+ (1, 14),
+ (1, 14),
+ (1, 14),
+ (1, 14),
+ (1, 14),
+ (1, 14),
+ (1, 13),
+ (1, 14),
+ (1, 14),
+ (2, 12),
+]
+
+
 def quantize_model(model: PreTrainedModel, args: Namespace):
     """main entry point to functions for model quantization"""
     tick = time.time()
@@ -184,7 +219,6 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
         val_inps, val_outs = None, None
 
     use_cache = model.config.use_cache
-    num_codebooks = args.num_codebooks
     model.config.use_cache = False
 
     quantizers = {}
@@ -193,6 +227,12 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
     layers = get_layers(model)
 
     for layer_index in range(len(layers)):
+        layer_config = CONFIG[layer_index]
+        args.num_codebooks = layer_config[0]
+        args.nbits_per_codebook = layer_config[1]
+
+        num_codebooks = args.num_codebooks
+
         print(f"\n---------------- Layer {layer_index} of {len(layers)} ----------------")
         stats_payload = {}
         start_time = time.time()
