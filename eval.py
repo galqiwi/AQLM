@@ -52,7 +52,7 @@ def get_zero_shots(model, task_list = ('arc_easy',), num_fewshots=1):
 
     results = lm_eval.evaluator.evaluate(
         lm=lm_eval_model,
-        task_dict=lm_eval.tasks.get_task_dict(tasks),
+        task_dict=tasks,
     )
 
     result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
