@@ -514,15 +514,16 @@ def perplexity_eval(
 
 # PERPLEXITY_EVAL
 
-def eval(
+def eval_ppl(
     model,
     model_path,
     model_seqlen,
-    device,
+    device = 'cuda:0',
     ppl_datasets = ('wikitext2',),
     trust_remote_code=False,
     offload_activations=False,
 ):
+    output = {}
     for dataset in ppl_datasets:
         testloader = get_loaders(
             dataset,
@@ -533,7 +534,7 @@ def eval(
             use_fast_tokenizer=False,
             trust_remote_code=trust_remote_code,
         )
-        perplexity_eval(
+        ppl = perplexity_eval(
             model,
             testloader,
             dataset_name=dataset,
@@ -541,8 +542,10 @@ def eval(
             device=device,
             offload_activations=offload_activations,
         )
+        output[dataset] = ppl
         # make sure that the cache is released
         torch.cuda.empty_cache()
+    return output
 
 
 if __name__ == "__main__":
@@ -625,6 +628,4 @@ if __name__ == "__main__":
         device_map=args.device_map,
         low_cpu_mem_usage=True,
     )
-    eval(model, args.base_model, args.model_seqlen, device)
-
-
+    print(eval(model, args.base_model, args.model_seqlen, device))
