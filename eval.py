@@ -21,6 +21,10 @@ from tqdm import trange
 from tqdm.auto import trange
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, PreTrainedModel
 
+MODEL_ERROR_MSG = "Unsupported model type {} - only 'llama', 'Yi', 'opt' and 'falcon' are supported"
+FALCON_TYPES = ("falcon", "refinedweb", "refinedwebmodel")
+LLAMA_LIKE = ("llama", "Yi", "mistral", "mixtral", "gemma", "cohere")
+
 # DATAUTILS
 
 def set_seed(seed: Optional[int]):
