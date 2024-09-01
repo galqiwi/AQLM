@@ -281,6 +281,27 @@ def get_layers(model):
         raise ValueError(MODEL_ERROR_MSG.format(model.config.model_type))
 
 
+def get_model_head(model):
+    head = torch.nn.ModuleList()
+    if model.config.model_type in LLAMA_LIKE:
+        if model.model.norm is not None:
+            head.append(model.model.norm)
+        head.append(model.lm_head)
+    elif model.config.model_type.lower() in FALCON_TYPES:
+        if model.transformer.ln_f is not None:
+            head.append(model.transformer.ln_f)
+        head.append(model.lm_head)
+    elif model.config.model_type == "opt":
+        if model.model.decoder.final_layer_norm is not None:
+            head.append(model.model.decoder.final_layer_norm)
+        if model.model.decoder.project_out is not None:
+            head.append(model.model.decoder.project_out)
+        head.append(model.lm_head)
+    else:
+        raise ValueError(MODEL_ERROR_MSG.format(model.config.model_type))
+    return head
+
+
 @torch.no_grad()
 def get_inps(
     model: PreTrainedModel,
