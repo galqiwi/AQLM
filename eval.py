@@ -382,6 +382,36 @@ def get_inps(
 
 
 @torch.no_grad()
+def update_outs(
+    layer: nn.Module, inps_tensor: torch.Tensor, outs_tensor: torch.Tensor, compute_mse: bool, **forward_args
+) -> Sequence[float]:
+    """
+    Update outs_tensor with new activations and optionally compute sample-wise mse loss with previous activations
+    :param layer: transformer layer with one or more linear layer to be quantized
+    :param inps_tensor: a tensor of input activations, [nsamples_per_device, seq_len, hidden_size]
+    :param outs_tensor: a tensor to write output activations into, [nsamples_per_device, seq_len, hidden_size]
+    :note: outs_tensor must contain previous activations with which to compute MSE loss
+    :param compute_mse: if True, return a list of sample-wise mse losses; if False, return an empty sequence
+    :param forward_args: additional keyword arguments, e.g. attention mask
+    :returns: a list of mean squared errors for each sequence
+    """
+    device = torch.device(f"cuda:{torch.cuda.current_device()}" if torch.cuda.is_available() else "cpu")
+    out_losses = []
+    for j in trange(len(inps_tensor), desc="calc outs after quantization", leave=False):
+        outs_batch = layer(inps_tensor[j].to(device).unsqueeze(0), **forward_args)[0]
+        if compute_mse:
+            batch_size = outs_batch.shape[0]
+            outs_batch_loss = (
+                (outs_batch - outs_tensor[j].to(device)).float().square().view(batch_size, -1).mean(dim=-1)
+            )
+            outs_batch_loss /= outs_batch.float().square().view(batch_size, -1).mean(dim=-1).clamp(min=1e-6)
+            outs_batch_loss = outs_batch_loss.mean()
+            out_losses.append(outs_batch_loss.item())
+        outs_tensor[j].copy_(outs_batch.reshape_as(outs_tensor[j]), non_blocking=True)
+    return out_losses
+
+
+@torch.no_grad()
 def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Namespace) -> float:
     print(f"\nEvaluating perplexity for {args.dataset_name} dataset ...")
 
@@ -399,11 +429,11 @@ def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Nam
     layers = get_layers(model)
     for i in trange(len(layers), desc="processing eval data by layer"):
         layer = layers[i].to(device)
-        if len(args.devices) == 1:
-            assert len(inps) == len(outs) == 1
-            update_outs(layer, inps[0], outs[0], compute_mse=False, **forward_args)
-        else:
-            update_outs_parallel(args.devices, layer, inps, outs, compute_mse=False, **forward_args)
+        assert len(args.devices) == 1
+
+        assert len(inps) == len(outs) == 1
+        update_outs(layer, inps[0], outs[0], compute_mse=False, **forward_args)
+
         layers[i] = layer.cpu()
         del layer
         torch.cuda.empty_cache()
