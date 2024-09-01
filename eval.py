@@ -152,7 +152,7 @@ def main():
     child = get_module_by_path(model, args.layer_name)
     assert isinstance(child, torch.nn.Linear)
 
-    new_linear = NoisyLinear(child.weight, child.bias, relative_mse=relative_mse)
+    new_linear = NoisyHadamarLinear(child.weight, child.bias, relative_mse=relative_mse)
     setattr(parent, layer_name_parts[-1], new_linear)
 
     print(f'{relative_mse=}')
