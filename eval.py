@@ -1,3 +1,12 @@
+# This file provides API for evaluating models
+# Usage:
+#
+# ppl_metrics = eval_ppl(model, model_path, model_seqlen)
+# zeroshot_metrics = get_zero_shots(model, task_list = ['mmlu'], num_fewshots)
+# wandb.log(ppl_metrics)
+# wandb.log(zeroshot_metrics)
+
+
 import argparse
 import math
 import os
