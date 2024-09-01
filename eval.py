@@ -35,6 +35,8 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, LlamaT
 def get_zero_shots(model, task_list = ('arc_easy',), num_fewshots=1):
     import lm_eval
 
+    model.cuda()
+
     lm_eval_model = lm_eval.models.huggingface.HFLM(
         pretrained=model,
     )
