@@ -281,6 +281,29 @@ def get_layers(model):
         raise ValueError(MODEL_ERROR_MSG.format(model.config.model_type))
 
 
+def get_lm_logits(inps_, model):
+    if model.config.model_type in LLAMA_LIKE:
+        hidden_states = inps_.unsqueeze(0)
+        if model.model.norm is not None:
+            hidden_states = model.model.norm(hidden_states)
+        lm_logits = model.lm_head(hidden_states)
+    elif model.config.model_type.lower() in FALCON_TYPES:
+        hidden_states = inps_.unsqueeze(0)
+        if model.transformer.ln_f is not None:
+            hidden_states = model.transformer.ln_f(hidden_states)
+        lm_logits = model.lm_head(hidden_states)
+    elif model.config.model_type == "opt":
+        hidden_states = inps_.unsqueeze(0)
+        if model.model.decoder.final_layer_norm is not None:
+            hidden_states = model.model.decoder.final_layer_norm(hidden_states)
+        if model.model.decoder.project_out is not None:
+            hidden_states = model.model.decoder.project_out(hidden_states)
+        lm_logits = model.lm_head(hidden_states)
+    else:
+        raise ValueError(MODEL_ERROR_MSG.format(model.config.model_type))
+    return lm_logits
+
+
 def get_model_head(model):
     head = torch.nn.ModuleList()
     if model.config.model_type in LLAMA_LIKE:
