@@ -456,24 +456,29 @@ def update_outs(
 
 
 @torch.no_grad()
-def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Namespace) -> float:
-    print(f"\nEvaluating perplexity for {args.dataset_name} dataset ...")
+def perplexity_eval(
+    model: PreTrainedModel,
+    testenc: torch.LongTensor,
+    dataset_name,
+    model_seqlen,
+    device,
+    offload_activations,
+) -> float:
+    print(f"\nEvaluating perplexity for {dataset_name} dataset ...")
 
-    nsamples = testenc.numel() // args.model_seqlen
+    nsamples = testenc.numel() // model_seqlen
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
-    inps, forward_args = get_inps(model, testenc, args.model_seqlen, args.devices, args.offload_activations)
+    inps, forward_args = get_inps(model, testenc, model_seqlen, [device], offload_activations)
     outs = [torch.zeros_like(inp_tensor, pin_memory=inp_tensor.is_pinned()) for inp_tensor in inps]
-    device = args.devices[0]
     for k, v in forward_args.items():
         forward_args[k] = v.to(device) if isinstance(v, torch.Tensor) else v
 
     layers = get_layers(model)
     for i in trange(len(layers), desc="processing eval data by layer"):
         layer = layers[i].to(device)
-        assert len(args.devices) == 1
 
         assert len(inps) == len(outs) == 1
         update_outs(layer, inps[0], outs[0], compute_mse=False, **forward_args)
@@ -490,16 +495,16 @@ def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Nam
 
     nlls = []
     for i in range(nsamples):
-        inp = inps[i // nsamples_per_device][i % nsamples_per_device].to(args.devices[0], non_blocking=True)
+        inp = inps[i // nsamples_per_device][i % nsamples_per_device].to(device, non_blocking=True)
         lm_logits = get_lm_logits(inp.to(device), model)
         shift_logits = lm_logits[:, :-1, :].contiguous()
-        shift_labels = testenc[:, (i * args.model_seqlen) : ((i + 1) * args.model_seqlen)][:, 1:]
+        shift_labels = testenc[:, (i * model_seqlen) : ((i + 1) * model_seqlen)][:, 1:]
         loss_fct = nn.CrossEntropyLoss()
         loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-        neg_log_likelihood = loss.float() * args.model_seqlen
+        neg_log_likelihood = loss.float() * model_seqlen
         nlls.append(neg_log_likelihood)
-    ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * args.model_seqlen)).item()
-    print(f"\n{args.dataset_name} perplexity = {ppl:.4f}\n")
+    ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * model_seqlen)).item()
+    print(f"\n{dataset_name} perplexity = {ppl:.4f}\n")
 
     get_model_head(model).to(torch.device("cpu"))
 
@@ -508,6 +513,36 @@ def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Nam
 
 
 # PERPLEXITY_EVAL
+
+def eval(
+    model,
+    model_path,
+    model_seqlen,
+    device,
+    ppl_datasets = ('wikitext2',),
+    trust_remote_code=False,
+    offload_activations=False,
+):
+    for dataset in ppl_datasets:
+        testloader = get_loaders(
+            dataset,
+            seed=0,
+            model_path=model_path,
+            seqlen=model_seqlen,
+            eval_mode=True,
+            use_fast_tokenizer=False,
+            trust_remote_code=trust_remote_code,
+        )
+        perplexity_eval(
+            model,
+            testloader,
+            dataset_name=dataset,
+            model_seqlen=model_seqlen,
+            device=device,
+            offload_activations=offload_activations,
+        )
+        # make sure that the cache is released
+        torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
@@ -583,7 +618,6 @@ if __name__ == "__main__":
     # get device
     assert torch.cuda.is_available()
     device = "cuda"
-    args.devices = [device]  # needed for perplexity eval
 
     model = AutoModelForCausalLM.from_pretrained(
         pretrained_model_name_or_path=args.base_model,
@@ -591,18 +625,6 @@ if __name__ == "__main__":
         device_map=args.device_map,
         low_cpu_mem_usage=True,
     )
+    eval(model, args.base_model, args.model_seqken, device)
 
-    for dataset in args.eval_datasets:
-        testloader = get_loaders(
-            dataset,
-            seed=args.seed,
-            model_path=args.base_model,
-            seqlen=args.eval_model_seqlen or args.model_seqlen,
-            eval_mode=True,
-            use_fast_tokenizer=args.use_fast_tokenizer,
-            trust_remote_code=args.trust_remote_code,
-        )
-        args.dataset_name = dataset
-        perplexity_eval(model, testloader, args)
-        # make sure that the cache is released
-        torch.cuda.empty_cache()
+
