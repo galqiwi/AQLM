@@ -1,16 +1,21 @@
 import argparse
 import os
 import random
-from typing import Optional
+import time
+from argparse import Namespace
+from itertools import chain
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
 
 import datasets
 import numpy as np
 import torch
+import torch.nn as nn
 from accelerate.hooks import remove_hook_from_submodules
 from datasets import load_dataset
 from packaging import version
 from tqdm import trange
-from transformers import AutoTokenizer, LlamaTokenizer
+from tqdm.auto import trange
+from transformers import AutoTokenizer, LlamaTokenizer, PreTrainedModel
 
 # DATAUTILS
 
