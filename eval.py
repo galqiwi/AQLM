@@ -1,12 +1,429 @@
 import argparse
+import os
+import random
+from typing import Optional
 
+import datasets
+import numpy as np
 import torch
 from accelerate.hooks import remove_hook_from_submodules
+from datasets import load_dataset
+from packaging import version
+from tqdm import trange
+from transformers import AutoTokenizer, LlamaTokenizer
 
-from main import perplexity_eval
-from src.datautils import get_loaders
-from src.modelutils import get_model
-from src.aq import QuantizedWeight
+# DATAUTILS
+
+def set_seed(seed: Optional[int]):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.random.manual_seed(seed)
+
+
+def get_red_pajama(nsamples, seqlen, tokenizer, eval_mode=False):
+    print("Loading red_pajama from togethercomputer/RedPajama-Data-1T-Sample")
+    assert not eval_mode, "Only train set is supported in RedPajama"
+    traindata = load_dataset("togethercomputer/RedPajama-Data-1T-Sample", split="train")
+    tokenizer.bos_token_id = 1
+    tokenizer.eos_token_id = 2
+    trainloader = []
+    for _ in trange(nsamples, desc="Making red_pajama calibration set", leave=False):
+        while True:
+            i = random.randint(0, len(traindata) - 1)
+            trainenc = tokenizer(traindata[i]["text"], return_tensors="pt")
+            if trainenc.input_ids.shape[1] > seqlen:
+                break
+        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        inp = trainenc.input_ids[:, i:j]
+        assert inp.shape[1] == seqlen
+        trainloader.append(inp)
+    return trainloader
+
+
+def get_wikitext2(nsamples, seqlen, tokenizer, eval_mode=False):
+    if not eval_mode:
+        traindata = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
+        trainenc = tokenizer("\n\n".join(traindata["text"]), return_tensors="pt")
+        trainloader = []
+        for _ in range(nsamples):
+            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+            j = i + seqlen
+            inp = trainenc.input_ids[:, i:j]
+            trainloader.append(inp)
+        return trainloader
+    else:
+        testdata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
+        testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
+        return testenc
+
+
+def get_ptb(nsamples, seqlen, tokenizer, eval_mode=False):
+    if not eval_mode:
+        traindata = load_dataset("ptb_text_only", "penn_treebank", split="train")
+        trainenc = tokenizer("\n\n".join(traindata["sentence"]), return_tensors="pt")
+        trainloader = []
+        for _ in range(nsamples):
+            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+            j = i + seqlen
+            inp = trainenc.input_ids[:, i:j]
+            trainloader.append(inp)
+        return trainloader
+    else:
+        valdata = load_dataset("ptb_text_only", "penn_treebank", split="validation")
+        testenc = tokenizer("\n\n".join(valdata["sentence"]), return_tensors="pt")
+    return testenc
+
+
+def get_c4(nsamples, seqlen, tokenizer, eval_mode=False):
+    if not eval_mode:
+        traindata = load_dataset(
+            "allenai/c4",
+            "default",
+            data_files={"train": "en/c4-train.00000-of-01024.json.gz"},
+            split="train",
+            revision="607bd4c8450a42878aa9ddc051a65a055450ef87",
+        )
+        trainloader = []
+        for _ in range(nsamples):
+            while True:
+                i = random.randint(0, len(traindata) - 1)
+                trainenc = tokenizer(traindata[i]["text"], return_tensors="pt")
+                if trainenc.input_ids.shape[1] >= seqlen:
+                    break
+            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+            j = i + seqlen
+            inp = trainenc.input_ids[:, i:j]
+            trainloader.append(inp)
+        return trainloader
+
+    else:
+        valdata = load_dataset(
+            "allenai/c4",
+            "default",
+            data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
+            split="validation",
+            revision="607bd4c8450a42878aa9ddc051a65a055450ef87",
+        )
+        random.seed(0)
+        valenc = []
+        for _ in range(256):
+            while True:
+                i = random.randint(0, len(valdata) - 1)
+                tmp = tokenizer(valdata[i]["text"], return_tensors="pt")
+                if tmp.input_ids.shape[1] >= seqlen:
+                    break
+            if tmp.input_ids.shape[1] == seqlen:
+                # rare case, discovered with Yi tokenizer
+                valenc.append(tmp.input_ids)
+            else:
+                i = random.randint(0, tmp.input_ids.shape[1] - seqlen - 1)
+                j = i + seqlen
+                valenc.append(tmp.input_ids[:, i:j])
+        valenc = torch.hstack(valenc)
+        return valenc
+
+
+def get_ptb_new(nsamples, seqlen, tokenizer, eval_mode=False):
+    if not eval_mode:
+        traindata = load_dataset("ptb_text_only", "penn_treebank", split="train")
+        trainenc = tokenizer(" ".join(traindata["sentence"]), return_tensors="pt")
+        trainloader = []
+        for _ in range(nsamples):
+            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+            j = i + seqlen
+            inp = trainenc.input_ids[:, i:j]
+            trainloader.append(inp)
+        return trainloader
+    else:
+        testdata = load_dataset("ptb_text_only", "penn_treebank", split="test")
+        testenc = tokenizer(" ".join(testdata["sentence"]), return_tensors="pt")
+        return testenc
+
+
+def get_c4_new(nsamples, seqlen, tokenizer, eval_mode=False):
+    if not eval_mode:
+        traindata = load_dataset(
+            "allenai/c4",
+            "default",
+            data_files={"train": "en/c4-train.00000-of-01024.json.gz"},
+            split="train",
+            revision="607bd4c8450a42878aa9ddc051a65a055450ef87",
+        )
+        trainloader = []
+        for _ in range(nsamples):
+            while True:
+                i = random.randint(0, len(traindata) - 1)
+                trainenc = tokenizer(traindata[i]["text"], return_tensors="pt")
+                if trainenc.input_ids.shape[1] >= seqlen:
+                    break
+            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+            j = i + seqlen
+            inp = trainenc.input_ids[:, i:j]
+            trainloader.append(inp)
+        return trainloader
+    else:
+        valdata = load_dataset(
+            "allenai/c4",
+            "default",
+            data_files={"validation": "en/c4-validation.00000-of-00008.json.gz"},
+            split="validation",
+            revision="607bd4c8450a42878aa9ddc051a65a055450ef87",
+        )
+        valenc = tokenizer(" ".join(valdata[:1100]["text"]), return_tensors="pt")
+        valenc = valenc.input_ids[:, : (256 * seqlen)]
+        return valenc
+
+
+def get_loaders(
+    name,
+    nsamples=128,
+    seed=0,
+    seqlen=2048,
+    eval_mode=False,
+    model_path=None,
+    use_fast_tokenizer=False,
+    trust_remote_code=None,
+):
+    """
+    Loads and prepares data for a Transformers model.
+    Args:
+        name (str): The name of the dataset to load.
+        This can be one of 'wikitext2', 'c4', 'ptb','pajama' for datasets loaded from Huggingface datasets,
+        or 'none' for cases where a dataset is not needed, like RTN. It can also accept data path to custom file.
+        nsamples (int, optional): The number of samples to load from the dataset. Defaults to 128.
+        seed (int, optional): The random seed value for data shuffling and splitting. Defaults to 0.
+        seqlen (int, optional): The maximum sequence length for input tokenization. Defaults to 2048.
+        model_path (str, optional): The path to the pretrained model weights or full model name.
+            used to detect llama to call proper tokenizer.
+            see https://github.com/huggingface/transformers/issues/22222#issuecomment-1488578722 for reasons.
+        eval_mode (bool, optional). defines slice selection for 'wikitext2', 'c4', 'ptb' datasets.
+        leave False for train slice.
+        use_fast_tokenizer: whether to use fast tokenizer
+        trust_remote_code: whether to trust remote code
+    Returns:
+        data (torch.utils.data.DataLoader or iterable): Data iterable for the dataset.
+    Note:
+        the popular decapoda-research Llama models have errors in tokenizer config, specifically
+        incorrect token ids for BOS, EOS. This gets corrected to ensure compatibility with transformers
+        of versions 4.29 and above.
+    """
+    set_seed(seed)
+
+    # for pre-tokenized datasets
+
+    if name.lower() == "none":
+        print("Not loading any dataset. (OK if you use no compression or methods like RTN.)")
+        return None
+    elif os.path.isfile(name):
+        try:
+            data = torch.load(name)[:nsamples]
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Failed to load custom data from {name}.",
+                "Check data path or use one of [c4, wikitext2, ptb, pajama, none]",
+            )
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path, use_fast=use_fast_tokenizer, trust_remote_code=trust_remote_code
+        )
+
+        if name.lower() == "wikitext2":
+            data = get_wikitext2(nsamples, seqlen, tokenizer, eval_mode=eval_mode)
+        elif name.lower() == "pajama":
+            data = get_red_pajama(nsamples, seqlen, tokenizer, eval_mode=eval_mode)
+        elif name.lower() == "ptb":
+            data = get_ptb(nsamples, seqlen, tokenizer, eval_mode=eval_mode)
+        elif name.lower() == "ptb_new":
+            data = get_ptb_new(nsamples, seqlen, tokenizer, eval_mode=eval_mode)
+        elif name.lower() == "c4":
+            data = get_c4(nsamples, seqlen, tokenizer, eval_mode=eval_mode)
+        elif name.lower() == "c4_new":
+            data = get_c4_new(nsamples, seqlen, tokenizer, eval_mode=eval_mode)
+        else:
+            raise ValueError(
+                f"Failed to load data from {name}.",
+                "Check dataset name or path or use one of [c4, wikitext2, ptb, pajama, none]",
+            )
+
+    if hasattr(data, "input_ids"):
+        data = data.input_ids
+
+    print(f"Loaded data from {name}; {len(data)=} sequences")
+    return data
+
+
+# DATAUTILS
+# PERPLEXITY_EVAL
+
+
+def get_layers(model):
+    if model.config.model_type in LLAMA_LIKE:
+        return model.model.layers
+    elif model.config.model_type.lower() in FALCON_TYPES:
+        return model.transformer.h
+    elif model.config.model_type == "opt":
+        return model.model.decoder.layers
+    else:
+        raise ValueError(MODEL_ERROR_MSG.format(model.config.model_type))
+
+
+@torch.no_grad()
+def get_inps(
+    model: PreTrainedModel,
+    data: Sequence,
+    model_seqlen: int,
+    devices: Sequence[torch.device],
+    offload_activations: bool,
+) -> Tuple[Sequence[torch.Tensor], Dict]:
+    """
+    mocks model launch to collect inputs to the first model layer
+    :returns: a list of torch tensors with activations for each device in args.devices.
+    Each tensor has shape [nsample_per_device, seq_len, hid_size]
+    """
+    print("catching layer inputs from data", flush=True)
+    layers = get_layers(model)
+    device = devices[0] if not offload_activations else torch.device("cpu")
+
+    if isinstance(data, torch.Tensor) and data.shape[0] == 1:  # given a single long tensor, split it into sequences
+        assert data.ndim == 2, "data must be either a single tensor with a long sequence or a list of pre-cut sequences"
+        num_sequences, num_tokens_dropped = data.numel() // model_seqlen, data.numel() % model_seqlen
+        data = [data[:, i * model_seqlen : (i + 1) * model_seqlen].to(device) for i in range(num_sequences)]
+        print(f"Got {len(data)} sequences of {model_seqlen} tokens, dropped last {num_tokens_dropped} tokens")
+        del num_sequences, num_tokens_dropped
+
+    assert all(sequence.shape[1] == model_seqlen for sequence in data)
+
+    emb = model.get_input_embeddings()
+    emb_device = emb.weight.device
+    if emb_device.type != "cuda":
+        emb = emb.to(device)
+        # opt has other embeddings
+        if model.config.model_type == "opt":
+            model.model.decoder.embed_positions = model.model.decoder.embed_positions.to(device)
+            if hasattr(model.model.decoder, "project_in") and model.model.decoder.project_in:
+                model.model.decoder.project_in = model.model.decoder.project_in.to(device)
+    device = emb.weight.device  # now default device is the one where the embeddings are.
+    layer_device = next(layers[0].parameters()).device
+    layers[0] = layers[0].to(device)
+
+    dtype = next(iter(model.parameters())).dtype
+    nsamples_per_device = (len(data) - 1) // len(devices) + 1
+    inps = [
+        torch.zeros(
+            (min(nsamples_per_device, len(data) - i * nsamples_per_device), model_seqlen, model.config.hidden_size),
+            dtype=dtype,
+            device=devices[i] if not offload_activations else "cpu",
+            pin_memory=offload_activations,
+        )
+        for i in range(len(devices))
+    ]
+    forward_arg_names = ["attention_mask", "position_ids"]
+    if model.config.model_type.lower() in FALCON_TYPES:
+        forward_arg_names.append("alibi")
+
+    cache = {"i": 0, "alibi": None}
+
+    class CatcherExit(Exception):
+        pass
+
+    class Catcher(nn.Module):
+        def __init__(self, module):
+            super().__init__()
+            self.module = module
+
+        def forward(self, inp, **kwargs):
+            inps[cache["i"] // nsamples_per_device][cache["i"] % nsamples_per_device] = inp
+            cache["i"] += 1
+            for forward_arg_name in forward_arg_names:
+                cache[forward_arg_name] = kwargs.get(forward_arg_name)
+            raise CatcherExit()
+
+    layers[0] = Catcher(layers[0])
+    saved_num_threads = torch.get_num_threads()
+    torch.set_num_threads(min(16, saved_num_threads))
+    for batch_inps in data:
+        try:
+            if isinstance(batch_inps, (list, tuple)):
+                batch_inps, *_ = batch_inps
+            batch_inps = batch_inps.to(device)
+            # call model.forward to trigger the Catcher
+            model(batch_inps, attention_mask=torch.ones_like(batch_inps))
+        except CatcherExit:
+            pass  # exit after catcher finished without running the rest of the model layers
+
+    torch.set_num_threads(saved_num_threads)
+    layers[0] = layers[0].module
+
+    layers[0] = layers[0].to(layer_device)
+    model.get_input_embeddings().to(emb_device)
+    if model.config.model_type == "opt":
+        model.model.decoder.embed_positions = model.model.decoder.embed_positions.to(emb_device)
+        if hasattr(model.model.decoder, "project_in") and model.model.decoder.project_in:
+            model.model.decoder.project_in = model.model.decoder.project_in.to(emb_device)
+    torch.cuda.empty_cache()
+
+    forward_args = {k: cache[k] for k in forward_arg_names}
+    assert cache["i"] == sum(len(inp_tensor) for inp_tensor in inps), "internal error: found empty rows in inps"
+    return inps, forward_args
+
+
+@torch.no_grad()
+def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Namespace) -> float:
+    print(f"\nEvaluating perplexity for {args.dataset_name} dataset ...")
+
+    nsamples = testenc.numel() // args.model_seqlen
+
+    use_cache = model.config.use_cache
+    model.config.use_cache = False
+
+    inps, forward_args = get_inps(model, testenc, args.model_seqlen, args.devices, args.offload_activations)
+    outs = [torch.zeros_like(inp_tensor, pin_memory=inp_tensor.is_pinned()) for inp_tensor in inps]
+    device = args.devices[0]
+    for k, v in forward_args.items():
+        forward_args[k] = v.to(device) if isinstance(v, torch.Tensor) else v
+
+    layers = get_layers(model)
+    for i in trange(len(layers), desc="processing eval data by layer"):
+        layer = layers[i].to(device)
+        if len(args.devices) == 1:
+            assert len(inps) == len(outs) == 1
+            update_outs(layer, inps[0], outs[0], compute_mse=False, **forward_args)
+        else:
+            update_outs_parallel(args.devices, layer, inps, outs, compute_mse=False, **forward_args)
+        layers[i] = layer.cpu()
+        del layer
+        torch.cuda.empty_cache()
+        inps, outs = outs, inps
+
+    get_model_head(model).to(device)
+    testenc = testenc.to(device)
+    nsamples_per_device = len(inps[0])
+    assert len(set(map(len, inps[:-1]))) <= 1 and len(inps[-1]) <= len(inps[0])
+
+    nlls = []
+    for i in range(nsamples):
+        inp = inps[i // nsamples_per_device][i % nsamples_per_device].to(args.devices[0], non_blocking=True)
+        lm_logits = get_lm_logits(inp.to(device), model)
+        shift_logits = lm_logits[:, :-1, :].contiguous()
+        shift_labels = testenc[:, (i * args.model_seqlen) : ((i + 1) * args.model_seqlen)][:, 1:]
+        loss_fct = nn.CrossEntropyLoss()
+        loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+        neg_log_likelihood = loss.float() * args.model_seqlen
+        nlls.append(neg_log_likelihood)
+    ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * args.model_seqlen)).item()
+    print(f"\n{args.dataset_name} perplexity = {ppl:.4f}\n")
+
+    get_model_head(model).to(torch.device("cpu"))
+
+    if args.wandb:
+        wandb.log({args.dataset_name: ppl})
+
+    model.config.use_cache = use_cache
+    return ppl
+
+
+# PERPLEXITY_EVAL
 
 
 if __name__ == "__main__":
@@ -91,63 +508,13 @@ if __name__ == "__main__":
     device = "cuda"
     args.devices = [device]  # needed for perplexity eval
 
-    args.wandb = False
-
-
-    if args.eval_base:
-        orig_model = get_model(args.base_model, None, args.dtype, args.device_map,
-                               trust_remote_code=args.trust_remote_code)
-        if not args.device_map:
-            orig_model = orig_model.to(device)
-
-        print("\n============ Evaluating perplexity (base)... ============")
-        torch.cuda.reset_peak_memory_stats()
-        for dataset in args.eval_datasets:
-            testloader = get_loaders(
-                dataset,
-                seed=args.seed,
-                model_path=args.base_model,
-                seqlen=args.eval_model_seqlen or args.model_seqlen,
-                eval_mode=True,
-                use_fast_tokenizer=args.use_fast_tokenizer,
-                trust_remote_code=args.trust_remote_code,
-            )
-            args.dataset_name = dataset
-            perplexity_eval(orig_model, testloader, args)
-            # make sure that the cache is released
-            torch.cuda.empty_cache()
-
-        del orig_model
-
-    torch.cuda.empty_cache()
-    quant_model = get_model(
-        args.base_model, args.quant_model, args.dtype, args.device_map, trust_remote_code=args.trust_remote_code
+    model = AutoModelForCausalLM.from_pretrained(
+        pretrained_model_name_or_path=args.base_model,
+        trust_remote_code=args.trust_remote_code,
+        device_map=args.device_map,
+        low_cpu_mem_usage=True,
     )
-    if not args.device_map:
-        quant_model = quant_model.to(device)
 
-    # offload model to cpu
-    quant_model = quant_model.cpu()
-    if args.device_map:
-        remove_hook_from_submodules(quant_model)
-    torch.cuda.empty_cache()
-
-    n_bits = 0.0
-    n_params = 0
-    for name, module in quant_model.named_modules():
-        if not isinstance(module, QuantizedWeight):
-            continue
-        n_bits += (
-            module.estimate_nbits_per_parameter() * module.in_features * module.out_features
-        )
-        n_params += module.in_features * module.out_features
-
-    print(f'n_bits_per_parameter: {n_bits / n_params}')
-    print(f'n_bits: {n_bits}')
-    print(f'n_params: {n_params}')
-
-    print("\n============ Evaluating perplexity... ============")
-    torch.cuda.reset_peak_memory_stats()
     for dataset in args.eval_datasets:
         testloader = get_loaders(
             dataset,
@@ -159,8 +526,6 @@ if __name__ == "__main__":
             trust_remote_code=args.trust_remote_code,
         )
         args.dataset_name = dataset
-        perplexity_eval(quant_model, testloader, args)
+        perplexity_eval(model, testloader, args)
         # make sure that the cache is released
         torch.cuda.empty_cache()
-
-    print(f"eval: {torch.cuda.max_memory_allocated()=:,}")
