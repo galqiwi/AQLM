@@ -503,9 +503,6 @@ def perplexity_eval(model: PreTrainedModel, testenc: torch.LongTensor, args: Nam
 
     get_model_head(model).to(torch.device("cpu"))
 
-    if args.wandb:
-        wandb.log({args.dataset_name: ppl})
-
     model.config.use_cache = use_cache
     return ppl
 
