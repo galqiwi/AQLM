@@ -1,8 +1,10 @@
 import argparse
+import math
 import os
 import random
 import time
 from argparse import Namespace
+from contextlib import contextmanager
 from itertools import chain
 from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
 
@@ -10,12 +12,14 @@ import datasets
 import numpy as np
 import torch
 import torch.nn as nn
+import transformers
+from accelerate import dispatch_model
 from accelerate.hooks import remove_hook_from_submodules
 from datasets import load_dataset
 from packaging import version
 from tqdm import trange
 from tqdm.auto import trange
-from transformers import AutoTokenizer, LlamaTokenizer, PreTrainedModel
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, PreTrainedModel
 
 # DATAUTILS
 
