@@ -441,12 +441,6 @@ if __name__ == "__main__":
         help="path or name of the teacher model",
     )
     parser.add_argument(
-        "--quant_model",
-        type=str,
-        required=True,
-        help="path to quantized model",
-    )
-    parser.add_argument(
         "--model_seqlen",
         type=int,
         default=4096,
