@@ -50,7 +50,7 @@ def get_zero_shots(model, task_list = ('arc_easy',), num_fewshots=1):
                 continue
             task.config.num_fewshot = num_fewshots
 
-    results = evaluator.evaluate(
+    results = lm_eval.evaluator.evaluate(
         lm=lm_eval_model,
         task_dict=lm_eval.tasks.get_task_dict(args.tasks),
     )
