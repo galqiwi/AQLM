@@ -32,10 +32,10 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, LlamaT
 
 # EVAL
 
-def get_zero_shots(model, task_list = ('arc_easy',), num_fewshots=1):
+def get_zero_shots(model, task_list = ('arc_easy',), num_fewshots=1, device='cuda:0'):
     import lm_eval
 
-    model.cuda()
+    model.to(device)
 
     lm_eval_model = lm_eval.models.huggingface.HFLM(
         pretrained=model,
@@ -596,7 +596,7 @@ def perplexity_eval(
 # PERPLEXITY_EVAL
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(add_help=True)
     # Model params
     parser.add_argument(
@@ -677,4 +677,7 @@ if __name__ == "__main__":
         low_cpu_mem_usage=True,
     )
     print(eval_ppl(model, args.base_model, args.model_seqlen, device))
-    print(get_zero_shots(model, task_list = ['arc_easy'], num_fewshots = 5))
+    print(get_zero_shots(model, task_list = ['arc_easy'], num_fewshots = 1))
+
+if __name__ == "__main__":
+    main()
