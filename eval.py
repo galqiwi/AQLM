@@ -2,7 +2,7 @@
 # Usage:
 #
 # ppl_metrics = eval_ppl(model, model_path, model_seqlen)
-# zeroshot_metrics = get_zero_shots(model, task_list = ['mmlu'], num_fewshots)
+# zeroshot_metrics = get_zero_shots(model, task_list = ['mmlu'], num_fewshots = 5)
 # wandb.log(ppl_metrics)
 # wandb.log(zeroshot_metrics)
 
@@ -675,3 +675,4 @@ if __name__ == "__main__":
         low_cpu_mem_usage=True,
     )
     print(eval_ppl(model, args.base_model, args.model_seqlen, device))
+    print(get_zero_shots(model, task_list = ['mmlu'], num_fewshots = 5))
