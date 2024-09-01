@@ -8,30 +8,11 @@ from main import perplexity_eval
 from src.datautils import get_loaders
 from src.modelutils import get_model
 from src.aq import QuantizedWeight
-
-
-class NoisyLinear(torch.nn.Module):
-    def __init__(self, weight, bias, *, relative_mse = 0):
-        super().__init__()
-
-        weight = weight.detach().clone()
-        if bias is not None:
-            bias = bias.detach().clone()
-
-        self.out_features, self.in_features = weight.shape
-
-        self.inner = torch.nn.Linear(self.in_features, self.out_features, bias=(bias is not None), dtype=weight.dtype,
-                                     device=weight.device)
-
-        weight = weight + torch.randn_like(weight) * torch.norm(weight) * (relative_mse ** 0.5) / (weight.numel() ** 0.5)
-
-        self.inner.weight.data = weight
-        if bias is not None:
-            self.inner.bias.data = bias
-
-    def forward(self, input):
-
-        return self.inner(input)
+from noise import NoisyHadamarLinear
+from lm_eval import evaluator
+import lm_eval.models.huggingface
+import lm_eval.tasks
+import requests
 
 
 def get_module_by_path(model, path):
@@ -62,7 +43,7 @@ def add_noisy_layers(model, relative_mse):
     return model
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(add_help=True)
     # Model params
     parser.add_argument(
@@ -72,17 +53,11 @@ if __name__ == "__main__":
         help="path or name of the teacher model",
     )
     parser.add_argument(
-        "--model_seqlen",
-        type=int,
-        default=4096,
-        help="Model seqlen and calibration data context length.",
-    )
-    parser.add_argument(
-        "--eval_datasets",
+        "--tasks",
         nargs="+",
         type=str,
-        default=["wikitext2", "c4"],
-        help="Datasets to run evaluation on",
+        default=["arc_easy",],
+        help="Tasks to run evaluation on",
     )
     parser.add_argument(
         "--effective_wbits",
@@ -96,6 +71,12 @@ if __name__ == "__main__":
         default=0,
         help="Seed for calibration data and initialization. "
         "Note that the main training is not strictly deterministic.",
+    )
+    parser.add_argument(
+        "--num_fewshots",
+        type=int,
+        default=1,
+        help="number of fewshots for tasks",
     )
     parser.add_argument(
         "--offload_activations",
@@ -154,12 +135,15 @@ if __name__ == "__main__":
     device = "cuda"
     args.devices = [device]  # needed for perplexity eval
 
-    orig_model = get_model(args.base_model, None, args.dtype, args.device_map,
+    model = get_model(args.base_model, None, args.dtype, args.device_map,
                                trust_remote_code=args.trust_remote_code)
     if not args.device_map:
-        orig_model = orig_model.to(device)
+        model = model.to(device)
 
-    relative_mse = 4 ** (-args.effective_wbits)
+    if args.effective_wbits == -1.0:
+        relative_mse = 0.0
+    else:
+        relative_mse = 4 ** (-args.effective_wbits)
 
     layer_name_parts = args.layer_name.split('.')
 
@@ -171,25 +155,50 @@ if __name__ == "__main__":
     new_linear = NoisyLinear(child.weight, child.bias, relative_mse=relative_mse)
     setattr(parent, layer_name_parts[-1], new_linear)
 
+    print(f'{relative_mse=}')
+
     if args.wandb:
         wandb.log({"relative_mse": relative_mse})
-    print(f'{args.effective_wbits=}')
-    print(f'{relative_mse=}')
-    print(orig_model)
 
-    print("\n============ Evaluating perplexity (base)... ============")
-    torch.cuda.reset_peak_memory_stats()
-    for dataset in args.eval_datasets:
-        testloader = get_loaders(
-            dataset,
-            seed=args.seed,
-            model_path=args.base_model,
-            seqlen=args.model_seqlen,
-            eval_mode=True,
-            use_fast_tokenizer=args.use_fast_tokenizer,
-            trust_remote_code=args.trust_remote_code,
-        )
-        args.dataset_name = dataset
-        perplexity_eval(orig_model, testloader, args)
-        # make sure that the cache is released
-        torch.cuda.empty_cache()
+    add_noisy_layers(model.model.layers, relative_mse=relative_mse)
+
+    lm_eval_model = lm_eval.models.huggingface.HFLM(
+        pretrained=model,
+    )
+
+    tasks = lm_eval.tasks.get_task_dict(args.tasks)
+    if args.num_fewshots != 1:
+        for task_name in tasks:
+            task = tasks[task_name]
+            if isinstance(task, tuple):
+                task = task[1]
+            if task is None:
+                continue
+            task.config.num_fewshot = args.num_fewshots
+
+    results = evaluator.evaluate(
+        lm=lm_eval_model,
+        task_dict=lm_eval.tasks.get_task_dict(args.tasks),
+    )
+
+    result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
+    result_err_dict = {f'{task_name}_err': task_result['acc_stderr,none'] for task_name, task_result in results['results'].items()}
+    result_dict = dict(list(result_dict.items()) + list(result_err_dict.items()))
+
+    if args.num_fewshots != 1:
+        result_dict = {f'{task_name}@{args.num_fewshots}': acc for task_name, acc in result_dict.items()}
+
+    for task_name, acc in result_dict.items():
+        print(f'{task_name}: {acc}')
+
+    if args.wandb:
+        wandb.log(result_dict)
+
+
+if __name__ == '__main__':
+    while True:
+        try:
+            main()
+            break
+        except requests.exceptions.SSLError:
+            pass
