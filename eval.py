@@ -21,10 +21,75 @@ from tqdm import trange
 from tqdm.auto import trange
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, PreTrainedModel
 
-MODEL_ERROR_MSG = "Unsupported model type {} - only 'llama', 'Yi', 'opt' and 'falcon' are supported"
-FALCON_TYPES = ("falcon", "refinedweb", "refinedwebmodel")
-LLAMA_LIKE = ("llama", "Yi", "mistral", "mixtral", "gemma", "cohere")
+# EVAL
 
+def get_zero_shots(model, task_list = ('arc_easy',), num_fewshots=1):
+    import lm_eval
+
+    lm_eval_model = lm_eval.models.huggingface.HFLM(
+        pretrained=model,
+    )
+
+    tasks = lm_eval.tasks.get_task_dict(task_list)
+    if num_fewshots != 1:
+        # TODO: make fewshots properly
+        for task_name in tasks:
+            task = tasks[task_name]
+            if isinstance(task, tuple):
+                task = task[1]
+            if task is None:
+                continue
+            task.config.num_fewshot = num_fewshots
+
+    results = evaluator.evaluate(
+        lm=lm_eval_model,
+        task_dict=lm_eval.tasks.get_task_dict(args.tasks),
+    )
+
+    result_dict = {task_name: task_result['acc,none'] for task_name, task_result in results['results'].items()}
+    result_err_dict = {f'{task_name}_err': task_result['acc_stderr,none'] for task_name, task_result in
+                       results['results'].items()}
+    result_dict = dict(list(result_dict.items()) + list(result_err_dict.items()))
+
+    if num_fewshots != 1:
+        result_dict = {f'{task_name}@{num_fewshots}': acc for task_name, acc in result_dict.items()}
+
+    return result_dict
+
+def eval_ppl(
+    model,
+    model_path,
+    model_seqlen,
+    device = 'cuda:0',
+    ppl_datasets = ('wikitext2',),
+    trust_remote_code=False,
+    offload_activations=False,
+):
+    output = {}
+    for dataset in ppl_datasets:
+        testloader = get_loaders(
+            dataset,
+            seed=0,
+            model_path=model_path,
+            seqlen=model_seqlen,
+            eval_mode=True,
+            use_fast_tokenizer=False,
+            trust_remote_code=trust_remote_code,
+        )
+        ppl = perplexity_eval(
+            model,
+            testloader,
+            dataset_name=dataset,
+            model_seqlen=model_seqlen,
+            device=device,
+            offload_activations=offload_activations,
+        )
+        output[dataset] = ppl
+        # make sure that the cache is released
+        torch.cuda.empty_cache()
+    return output
+
+# EVAL
 # DATAUTILS
 
 def set_seed(seed: Optional[int]):
@@ -270,6 +335,11 @@ def get_loaders(
 # PERPLEXITY_EVAL
 
 
+MODEL_ERROR_MSG = "Unsupported model type {} - only 'llama', 'Yi', 'opt' and 'falcon' are supported"
+FALCON_TYPES = ("falcon", "refinedweb", "refinedwebmodel")
+LLAMA_LIKE = ("llama", "Yi", "mistral", "mixtral", "gemma", "cohere")
+
+
 def get_layers(model):
     if model.config.model_type in LLAMA_LIKE:
         return model.model.layers
@@ -513,39 +583,6 @@ def perplexity_eval(
 
 
 # PERPLEXITY_EVAL
-
-def eval_ppl(
-    model,
-    model_path,
-    model_seqlen,
-    device = 'cuda:0',
-    ppl_datasets = ('wikitext2',),
-    trust_remote_code=False,
-    offload_activations=False,
-):
-    output = {}
-    for dataset in ppl_datasets:
-        testloader = get_loaders(
-            dataset,
-            seed=0,
-            model_path=model_path,
-            seqlen=model_seqlen,
-            eval_mode=True,
-            use_fast_tokenizer=False,
-            trust_remote_code=trust_remote_code,
-        )
-        ppl = perplexity_eval(
-            model,
-            testloader,
-            dataset_name=dataset,
-            model_seqlen=model_seqlen,
-            device=device,
-            offload_activations=offload_activations,
-        )
-        output[dataset] = ppl
-        # make sure that the cache is released
-        torch.cuda.empty_cache()
-    return output
 
 
 if __name__ == "__main__":
