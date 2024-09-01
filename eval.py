@@ -628,4 +628,4 @@ if __name__ == "__main__":
         device_map=args.device_map,
         low_cpu_mem_usage=True,
     )
-    print(eval(model, args.base_model, args.model_seqlen, device))
+    print(eval_ppl(model, args.base_model, args.model_seqlen, device))
