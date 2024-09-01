@@ -147,9 +147,9 @@ def main():
 
     layer_name_parts = args.layer_name.split('.')
 
-    parent = get_module_by_path(orig_model, '.'.join(layer_name_parts[:-1]))
+    parent = get_module_by_path(model, '.'.join(layer_name_parts[:-1]))
 
-    child = get_module_by_path(orig_model, args.layer_name)
+    child = get_module_by_path(model, args.layer_name)
     assert isinstance(child, torch.nn.Linear)
 
     new_linear = NoisyLinear(child.weight, child.bias, relative_mse=relative_mse)
@@ -159,8 +159,6 @@ def main():
 
     if args.wandb:
         wandb.log({"relative_mse": relative_mse})
-
-    add_noisy_layers(model.model.layers, relative_mse=relative_mse)
 
     lm_eval_model = lm_eval.models.huggingface.HFLM(
         pretrained=model,
