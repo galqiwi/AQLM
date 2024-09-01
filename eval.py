@@ -675,4 +675,4 @@ if __name__ == "__main__":
         low_cpu_mem_usage=True,
     )
     print(eval_ppl(model, args.base_model, args.model_seqlen, device))
-    print(get_zero_shots(model, task_list = ['mmlu'], num_fewshots = 5))
+    print(get_zero_shots(model, task_list = ['arc_easy'], num_fewshots = 5))
