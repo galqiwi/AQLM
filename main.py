@@ -266,7 +266,7 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
                 )
             for sublayer_name in aq_handlers.keys():
                 quant_aqlm_config = literal_eval(requests.get(
-                    'https://gist.githubusercontent.com/galqiwi/7c231a815da694fbcf374ebca14fb15f/raw/9cc62ae77e78982721a9c1ed22fd4912ae01d65b/optimal_3bit_aqlm'
+                    'https://gist.githubusercontent.com/galqiwi/7c231a815da694fbcf374ebca14fb15f/raw/6c427abc80ab3d6e74dc0ca0df5ef333754c51b6/optimal_3bit_aqlm'
                 ).text)
                 num_codebooks, nbits_per_codebook = quant_aqlm_config[f'model.layers.{layer_index}.{sublayer_name}']
                 args.num_codebooks = num_codebooks
