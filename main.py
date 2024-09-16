@@ -34,6 +34,10 @@ except ModuleNotFoundError:
     has_wandb = False
 
 
+import requests
+from ast import literal_eval
+
+
 def quantize_model(model: PreTrainedModel, args: Namespace):
     """main entry point to functions for model quantization"""
     tick = time.time()
@@ -261,7 +265,14 @@ def quantize_aq(model: PreTrainedModel, data: Sequence, val_data: Optional[Seque
                     **forward_args,
                 )
             for sublayer_name in aq_handlers.keys():
-                print(f"Quantizing module {sublayer_name} of layer {layer_index}")
+                quant_aqlm_config = literal_eval(requests.get(
+                    'https://gist.githubusercontent.com/galqiwi/7c231a815da694fbcf374ebca14fb15f/raw/b894055c406fe9290e90d7dbc20ebd16335de5e9/optimal_3bit_aqlm'
+                ).text)
+                num_codebooks, nbits_per_codebook = quant_aqlm_config[f'model.layers.{layer_index}.{sublayer_name}']
+                args.num_codebooks = num_codebooks
+                args.nbits_per_codebook = nbits_per_codebook
+
+                print(f"Quantizing module {sublayer_name} of layer {layer_index}: {num_codebooks}x{nbits_per_codebook}")
                 if "mixtral" in model.config.model_type.lower() and args.mix_compression:
                     assert "mixtral" in model.config.model_type.lower()
                     if "self_attn" in sublayer_name.lower():
