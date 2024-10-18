@@ -690,6 +690,10 @@ def main():
     with one_rank_at_a_time(local=True, group_size=args.limit_parallel_inits):
         base_model = load_base_model(args, device)
         dequantized_model, named_quantized_params = load_dequantized_model(args, device)
+
+        for name, quantized_weight in named_quantized_params.items():
+            quantized_weight.codebooks.requires_grad = False
+
         if rank == 0:
             print("Wrapped model:")
             print(dequantized_model)
