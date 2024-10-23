@@ -775,7 +775,7 @@ def main():
 
         for name, quantized_weight in named_quantized_params.items():
             quantized_weight.codebooks.requires_grad = False
-            quantized_weight.scales.requires_grad = False
+            quantized_weight.scales.requires_grad = True
 
         if rank == 0:
             print("Wrapped model:")
@@ -841,9 +841,6 @@ def main():
 
     _load_state(args, metadata, dequantized_model, optimizer)
     torch.distributed.barrier()
-
-    perplexity_scores = compute_validation_perplexities(args, dequantized_model, eval_datasets)
-    print(f'perplexity_scores={perplexity_scores}\n' * 100)
 
     for current_epoch in range(args.max_epochs):
         if current_epoch < metadata['current_epoch']:
