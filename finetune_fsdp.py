@@ -842,6 +842,9 @@ def main():
     _load_state(args, metadata, dequantized_model, optimizer)
     torch.distributed.barrier()
 
+    perplexity_scores = compute_validation_perplexities(args, dequantized_model, eval_datasets)
+    print(f'perplexity_scores={perplexity_scores}\n' * 100)
+
     for current_epoch in range(args.max_epochs):
         if current_epoch < metadata['current_epoch']:
             continue  # skip finished epochs
