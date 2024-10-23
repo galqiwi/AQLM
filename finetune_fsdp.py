@@ -775,6 +775,7 @@ def main():
 
         for name, quantized_weight in named_quantized_params.items():
             quantized_weight.codebooks.requires_grad = False
+            quantized_weight.scales.requires_grad = False
 
         if rank == 0:
             print("Wrapped model:")
