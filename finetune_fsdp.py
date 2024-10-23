@@ -545,6 +545,9 @@ def load_dequantized_model(args: argparse.Namespace, device: torch.device) -> Tu
             attn_implementation=args.attn_implementation
         ).to(args.master_dtype)
 
+    for param in quantized_model.parameters():
+        param.requires_grad = True
+
     quantized_model.config.use_cache = False
     quantized_model.train(True)  # note: HF gradient checkpoints do not work for some models without train(True); see
     # https://github.com/huggingface/transformers/blob/2d92db8/src/transformers/models/llama/modeling_llama.py#L1006
@@ -773,9 +776,9 @@ def main():
         base_model = load_base_model(args, device)
         dequantized_model, named_quantized_params = load_dequantized_model(args, device)
 
-        # for name, quantized_weight in named_quantized_params.items():
-        #     quantized_weight.codebooks.requires_grad = False
-        #     quantized_weight.scales.requires_grad = True
+        for name, quantized_weight in named_quantized_params.items():
+            quantized_weight.codebooks.requires_grad = False
+            quantized_weight.scales.requires_grad = False
 
         if rank == 0:
             print("Wrapped model:")
