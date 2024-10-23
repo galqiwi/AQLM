@@ -773,9 +773,9 @@ def main():
         base_model = load_base_model(args, device)
         dequantized_model, named_quantized_params = load_dequantized_model(args, device)
 
-        for name, quantized_weight in named_quantized_params.items():
-            quantized_weight.codebooks.requires_grad = False
-            quantized_weight.scales.requires_grad = True
+        # for name, quantized_weight in named_quantized_params.items():
+        #     quantized_weight.codebooks.requires_grad = False
+        #     quantized_weight.scales.requires_grad = True
 
         if rank == 0:
             print("Wrapped model:")
