@@ -546,6 +546,8 @@ def load_dequantized_model(args: argparse.Namespace, device: torch.device) -> Tu
         ).to(args.master_dtype)
 
     for param in quantized_model.parameters():
+        if 'int' in str(param.dtype):
+            continue
         param.requires_grad = True
 
     quantized_model.config.use_cache = False
