@@ -588,7 +588,7 @@ def load_dequantized_model(args: argparse.Namespace, device: torch.device) -> Tu
         )
     fsdp_model = FullyShardedDataParallel(
         dequantized_model,
-        auto_wrap_policy=lambda module, recurse, **_: recurse or isinstance(module, transformer_block_types),
+        auto_wrap_policy=lambda module, recurse, **_: recurse or isinstance(module, transformer_block_types + (nn.Linear,)),
         mixed_precision=mixed_precision,
         use_orig_params=True,
         device_id=device,
