@@ -85,8 +85,8 @@ class HadamardWrapper(nn.Module):
         self.inner = inner
 
     def forward(self, x):
-        assert isinstance(self.SU, nn.Parameter)
-        assert isinstance(self.SV, nn.Parameter)
+        assert isinstance(self.SU, nn.Parameter), type(self.SU)
+        assert isinstance(self.SV, nn.Parameter), type(self.SV)
 
         out_dim, in_dim = self.out_dim, self.in_dim
         
