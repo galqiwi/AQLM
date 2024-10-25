@@ -69,7 +69,9 @@ def matmul_hadU_cuda(X, hadK, K):
 class HadamardWrapper(nn.Module):
     def __init__(self, SU, SV, inner, device='cuda'):
         super().__init__()
-        
+
+        assert False, 'NO_INIT'
+
         self.out_dim, self.in_dim = len(SV), len(SU)
 
         SU = SU.detach().clone().to(device).float()
@@ -83,6 +85,9 @@ class HadamardWrapper(nn.Module):
         self.inner = inner
 
     def forward(self, x):
+        assert isinstance(self.SU, nn.Parameter)
+        assert isinstance(self.SV, nn.Parameter)
+
         out_dim, in_dim = self.out_dim, self.in_dim
         
         had_left_T, K_left = get_hadK(in_dim)
@@ -96,20 +101,20 @@ class HadamardWrapper(nn.Module):
 
         input_shape = x.shape
         assert input_shape[-1] == in_dim
-        
-        
-        x = x.view(-1, in_dim).to(torch.float32)
+
+        x = x.view(-1, in_dim)
+        # x = x.to(torch.float32)
         x = x * self.SU
         x = matmul_hadU_cuda(x, had_left_T, K_left) / 32
-        x = x.to(torch.float16)
-        
+        # x = x.to(torch.float16)
+
         x = self.inner(x)
-        
-        x = x.to(torch.float32)
+
+        # x = x.to(torch.float32)
         x = matmul_hadU_cuda(x, had_right, K_right)
         x = x * self.SV * 32
-        x = x.to(torch.float16)
-        
+        # x = x.to(torch.float16)
+
         x = x.reshape(tuple(input_shape[:-1]) + (out_dim,))
 
         return x
@@ -546,9 +551,9 @@ def load_dequantized_model(args: argparse.Namespace, device: torch.device) -> Tu
         ).to(args.master_dtype)
 
     for param in quantized_model.parameters():
-        if 'int' in str(param.dtype):
-            continue
-        param.requires_grad = True
+        assert param.dtype in (torch.float32, torch.int32)
+        if param.dtype != torch.int32:
+            param.requires_grad = True
 
     quantized_model.config.use_cache = False
     quantized_model.train(True)  # note: HF gradient checkpoints do not work for some models without train(True); see
