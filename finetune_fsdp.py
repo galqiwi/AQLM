@@ -462,6 +462,12 @@ def add_data_args(parser: argparse.ArgumentParser):
         default=None,
         help="If not None, save tokenized dataset to this path and exit training immediately",
     )
+    parser.add_argument(
+        "--stochastic_rounding_tau",
+        type=float,
+        default=0,
+        help="Tau parameter for stochastic rounding; default is 0",
+    )
 
 
 def prepare_training_dataset(args: argparse.Namespace, tokenizer: transformers.PreTrainedTokenizer) -> datasets.Dataset:
@@ -832,6 +838,7 @@ def main():
         beam_size=args.beam_size,
         straight_through_buffer_dtype=args.straight_through_buffer_dtype,
         verbose=args.verbose_optimizer,
+        stochastic_rounding_tau=args.stochastic_rounding_tau,
     )
     del named_quantized_params
 
