@@ -40,6 +40,7 @@ def get_zero_shots(model, task_list = ('arc_easy',), num_fewshots=1, device='cud
 
     lm_eval_model = lm_eval.models.huggingface.HFLM(
         pretrained=model,
+        batch_size=16,
     )
 
     tasks = lm_eval.tasks.get_task_dict(task_list)
