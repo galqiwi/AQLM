@@ -743,9 +743,11 @@ def main():
             for k, v in torch.load(os.path.join(best_model_path, name), map_location='cpu').state_dict().items()
         })
 
-    for key in quantized_model.state_dict():
-        if key not in best_model_state_dict:
-            print(key)
+    print(best_model_state_dict.keys())
+
+    print('-' * 100)
+
+    print(quantized_model.state_dict().keys())
 
     assert len(best_model_state_dict) == len(quantized_model.state_dict())
     print('loaded best model state dict')
