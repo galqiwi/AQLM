@@ -705,37 +705,37 @@ def main():
     add_finetuning_args(parser)
     args = parser.parse_args()
 
-    quantized_model = get_model(
-        args.base_model, args.quantized_model, dtype=args.load_dtype, trust_remote_code=args.trust_remote_code,
-        attn_implementation=args.attn_implementation
-    )
-
-    print(quantized_model)
-
-    import os
-
-    best_model_path = os.path.join(args.save, 'best_model')
-    best_model_state_dict = {}
-    for name in os.listdir(best_model_path):
-        if name == 'non_quantized_state_dict.pth':
-            best_model_state_dict.update(torch.load(os.path.join(best_model_path, name), map_location='cpu'))
-            continue
-
-        assert name.endswith('.weight.pth')
-        tensor_name_prefix = name[:-len('.weight.pth')]
-
-        quantized_weight = torch.load(os.path.join(best_model_path, name), map_location='cpu')
-        quantized_weight.unwrap_codes_()
-
-        best_model_state_dict.update({
-            tensor_name_prefix + '.quantized_weight.' + k: v
-            for k, v in quantized_weight.state_dict().items()
-        })
-
-    assert sorted(quantized_model.state_dict().keys()) == sorted(best_model_state_dict.keys())
-    print('loaded best model state dict')
-
-    quantized_model.load_state_dict(best_model_state_dict)
+    # quantized_model = get_model(
+    #     args.base_model, args.quantized_model, dtype=args.load_dtype, trust_remote_code=args.trust_remote_code,
+    #     attn_implementation=args.attn_implementation
+    # )
+    #
+    # print(quantized_model)
+    #
+    # import os
+    #
+    # best_model_path = os.path.join(args.save, 'best_model')
+    # best_model_state_dict = {}
+    # for name in os.listdir(best_model_path):
+    #     if name == 'non_quantized_state_dict.pth':
+    #         best_model_state_dict.update(torch.load(os.path.join(best_model_path, name), map_location='cpu'))
+    #         continue
+    #
+    #     assert name.endswith('.weight.pth')
+    #     tensor_name_prefix = name[:-len('.weight.pth')]
+    #
+    #     quantized_weight = torch.load(os.path.join(best_model_path, name), map_location='cpu')
+    #     quantized_weight.unwrap_codes_()
+    #
+    #     best_model_state_dict.update({
+    #         tensor_name_prefix + '.quantized_weight.' + k: v
+    #         for k, v in quantized_weight.state_dict().items()
+    #     })
+    #
+    # assert sorted(quantized_model.state_dict().keys()) == sorted(best_model_state_dict.keys())
+    # print('loaded best model state dict')
+    #
+    # quantized_model.load_state_dict(best_model_state_dict)
 
     args.amp_dtype = getattr(torch, args.amp_dtype) if args.amp_dtype is not None else None
 
@@ -759,12 +759,12 @@ def main():
     # for name, param in quantized_model.named_parameters():
     #     print(name, param.shape, param.dtype)
 
-    from eval import get_zero_shots
+    # from eval import get_zero_shots
 
-    print(get_zero_shots(quantized_model.to(torch.bfloat16), task_list=['hellaswag'], num_fewshots=1))
-    print(get_zero_shots(quantized_model.to(torch.bfloat16), task_list=['arc_easy', 'arc_challenge', 'hellaswag', 'winogrande', 'piqa'], num_fewshots=1))
+    # print(get_zero_shots(quantized_model.to(torch.bfloat16), task_list=['hellaswag'], num_fewshots=1))
+    # print(get_zero_shots(quantized_model.to(torch.bfloat16), task_list=['arc_easy', 'arc_challenge', 'hellaswag', 'winogrande', 'piqa'], num_fewshots=1))
 
-    return
+    # return
 
     assert torch.cuda.is_available() and torch.distributed.is_available()
     torch.distributed.init_process_group()
@@ -896,6 +896,8 @@ def main():
 
     _load_state(args, metadata, dequantized_model, optimizer)
     torch.distributed.barrier()
+
+    assert False
 
     for current_epoch in range(args.max_epochs):
         if current_epoch < metadata['current_epoch']:
