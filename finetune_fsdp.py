@@ -726,11 +726,10 @@ def main():
 
         quantized_weight = torch.load(os.path.join(best_model_path, name), map_location='cpu')
         quantized_weight.unwrap_codes_()
-        print(quantized_weight.state_dict())
 
         best_model_state_dict.update({
-            tensor_name_prefix + '.' + k: v
-            for k, v in torch.load(os.path.join(best_model_path, name), map_location='cpu').state_dict().items()
+            tensor_name_prefix + '.quantized_weight' + k: v
+            for k, v in quantized_weight.state_dict().items()
         })
 
     print(best_model_state_dict.keys())
