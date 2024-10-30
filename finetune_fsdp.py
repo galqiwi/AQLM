@@ -759,10 +759,12 @@ def main():
     # for name, param in quantized_model.named_parameters():
     #     print(name, param.shape, param.dtype)
 
+    wandb.init(config={a: getattr(args, a) for a in dir(args) if not a.startswith("_")})
+
     from eval import get_zero_shots
 
-    print(get_zero_shots(quantized_model.to(torch.bfloat16).to('cuda:0'), task_list=['hellaswag'], num_fewshots=1))
-    print(get_zero_shots(quantized_model.to(torch.bfloat16).to('cuda:0'), task_list=['arc_easy', 'arc_challenge', 'hellaswag', 'winogrande', 'piqa'], num_fewshots=1))
+    wandb.log(get_zero_shots(quantized_model.to(torch.bfloat16).to('cuda:0'), task_list=['hellaswag'], num_fewshots=1))
+    wandb.log(get_zero_shots(quantized_model.to(torch.bfloat16).to('cuda:0'), task_list=['arc_easy', 'arc_challenge', 'hellaswag', 'winogrande', 'piqa'], num_fewshots=1))
 
     return
 
