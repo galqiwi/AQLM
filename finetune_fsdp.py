@@ -749,7 +749,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
         )
         args.dataset_name = dataset
-        perplexity_eval(model, testloader, args)
+        evaluate_perplexity(model, testloader, args)
 
     return
 
