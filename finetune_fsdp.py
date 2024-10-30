@@ -739,21 +739,25 @@ def main():
 
     args.amp_dtype = getattr(torch, args.amp_dtype) if args.amp_dtype is not None else None
 
-    datasets = ["wikitext2", "c4"]
-    for dataset in datasets:
-        testloader = get_loaders(
-            dataset,
-            seed=args.seed,
-            model_path=args.base_model,
-            seqlen=args.model_seqlen,
-            eval_mode=True,
-            use_fast_tokenizer=args.use_fast_tokenizer,
-            trust_remote_code=args.trust_remote_code,
-        )
-        args.dataset_name = dataset
-        quantized_model = quantized_model.to('cuda:0')
-        amp_dtype = args.amp_dtype if args.amp_dtype is not None else original_dtype
-        print(evaluate_perplexity(quantized_model, testloader, args.model_seqlen, device='cuda:0', amp_dtype=amp_dtype))
+    # datasets = ["wikitext2", "c4"]
+    # for dataset in datasets:
+    #     testloader = get_loaders(
+    #         dataset,
+    #         seed=args.seed,
+    #         model_path=args.base_model,
+    #         seqlen=args.model_seqlen,
+    #         eval_mode=True,
+    #         use_fast_tokenizer=args.use_fast_tokenizer,
+    #         trust_remote_code=args.trust_remote_code,
+    #     )
+    #     args.dataset_name = dataset
+    #     quantized_model = quantized_model.to('cuda:0')
+    #     amp_dtype = args.amp_dtype if args.amp_dtype is not None else original_dtype
+    #     print(evaluate_perplexity(quantized_model, testloader, args.model_seqlen, device='cuda:0', amp_dtype=amp_dtype))
+
+    quantized_model = quantized_model.to('cuda:0')
+    for name, param in quantized_model.named_parameters():
+        print(name, param.shape, param.dtype)
 
     return
 
