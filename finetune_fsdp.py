@@ -737,6 +737,8 @@ def main():
 
     quantized_model.load_state_dict(best_model_state_dict)
 
+    args.amp_dtype = getattr(torch, args.amp_dtype) if args.amp_dtype is not None else None
+
     datasets = ["wikitext2", "c4"]
     for dataset in datasets:
         testloader = get_loaders(
@@ -769,7 +771,6 @@ def main():
     assert args.batch_size % (world_size * args.microbatch_size) == 0
     grad_accumulation_steps = args.batch_size // (world_size * args.microbatch_size)
     args.load_dtype = getattr(torch, args.load_dtype) if args.load_dtype != 'auto' else 'auto'
-    args.amp_dtype = getattr(torch, args.amp_dtype) if args.amp_dtype is not None else None
     args.code_dtype = getattr(torch, args.code_dtype) if args.code_dtype is not None else None
     args.master_dtype = getattr(torch, args.master_dtype)
     if args.straight_through_buffer_dtype is not None:
