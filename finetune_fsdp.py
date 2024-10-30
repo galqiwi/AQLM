@@ -728,7 +728,7 @@ def main():
         quantized_weight.unwrap_codes_()
 
         best_model_state_dict.update({
-            tensor_name_prefix + '.quantized_weight' + k: v
+            tensor_name_prefix + '.quantized_weight.' + k: v
             for k, v in quantized_weight.state_dict().items()
         })
 
