@@ -721,13 +721,12 @@ def main():
             best_model_state_dict.update(torch.load(os.path.join(best_model_path, name), map_location='cpu'))
             continue
 
-        assert name.endswith('.pth')
-        tensor_name_prefix = name[:-len('.pth')]
+        assert name.endswith('.weight.pth')
+        tensor_name_prefix = name[:-len('.weight.pth')]
 
         quantized_weight = torch.load(os.path.join(best_model_path, name), map_location='cpu')
         quantized_weight.unwrap_codes_()
         print(quantized_weight.state_dict())
-        assert False
 
         best_model_state_dict.update({
             tensor_name_prefix + '.' + k: v
