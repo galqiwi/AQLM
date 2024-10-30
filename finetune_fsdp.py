@@ -714,28 +714,28 @@ def main():
 
     import os
 
-    best_model_path = os.path.join(args.save, 'best_model')
-    best_model_state_dict = {}
-    for name in os.listdir(best_model_path):
-        if name == 'non_quantized_state_dict.pth':
-            best_model_state_dict.update(torch.load(os.path.join(best_model_path, name), map_location='cpu'))
-            continue
-
-        assert name.endswith('.weight.pth')
-        tensor_name_prefix = name[:-len('.weight.pth')]
-
-        quantized_weight = torch.load(os.path.join(best_model_path, name), map_location='cpu')
-        quantized_weight.unwrap_codes_()
-
-        best_model_state_dict.update({
-            tensor_name_prefix + '.quantized_weight.' + k: v
-            for k, v in quantized_weight.state_dict().items()
-        })
-
-    assert sorted(quantized_model.state_dict().keys()) == sorted(best_model_state_dict.keys())
-    print('loaded best model state dict')
-
-    quantized_model.load_state_dict(best_model_state_dict)
+    # best_model_path = os.path.join(args.save, 'best_model')
+    # best_model_state_dict = {}
+    # for name in os.listdir(best_model_path):
+    #     if name == 'non_quantized_state_dict.pth':
+    #         best_model_state_dict.update(torch.load(os.path.join(best_model_path, name), map_location='cpu'))
+    #         continue
+    #
+    #     assert name.endswith('.weight.pth')
+    #     tensor_name_prefix = name[:-len('.weight.pth')]
+    #
+    #     quantized_weight = torch.load(os.path.join(best_model_path, name), map_location='cpu')
+    #     quantized_weight.unwrap_codes_()
+    #
+    #     best_model_state_dict.update({
+    #         tensor_name_prefix + '.quantized_weight.' + k: v
+    #         for k, v in quantized_weight.state_dict().items()
+    #     })
+    #
+    # assert sorted(quantized_model.state_dict().keys()) == sorted(best_model_state_dict.keys())
+    # print('loaded best model state dict')
+    #
+    # quantized_model.load_state_dict(best_model_state_dict)
 
     args.amp_dtype = getattr(torch, args.amp_dtype) if args.amp_dtype is not None else None
 
