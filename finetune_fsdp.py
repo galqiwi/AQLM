@@ -720,6 +720,15 @@ def main():
     add_finetuning_args(parser)
     args = parser.parse_args()
 
+    quantized_model = get_model(
+        args.base_model, args.quantized_model, dtype=args.load_dtype, trust_remote_code=args.trust_remote_code,
+        attn_implementation=args.attn_implementation
+    ).to(args.master_dtype)
+
+    print(quantized_model)
+
+    assert False
+
     assert torch.cuda.is_available() and torch.distributed.is_available()
     torch.distributed.init_process_group()
     rank = torch.distributed.get_rank()
