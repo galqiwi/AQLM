@@ -59,7 +59,6 @@ def matmul_hadU_cuda(X, hadK, K):
     n = X.shape[-1]
     if K == 1:
         return hadamard_transform(X.contiguous(), 1/(n**0.5))
-
     input = X.float().view(-1, K, n // K)
     input = hadamard_transform(input.contiguous(), 1/(n**0.5))
     input = hadK.to(input.device).to(input.dtype) @ input
@@ -73,50 +72,36 @@ class HadamardWrapper(nn.Module):
         assert False, 'NO_INIT'
 
         self.out_dim, self.in_dim = len(SV), len(SU)
-
         SU = SU.detach().clone().to(device).float()
         SU.requires_grad = True
-
         SV = SV.detach().clone().to(device).float()
         SV.requires_grad = True
-        
         self.register_buffer('SU', SU)
         self.register_buffer('SV', SV)
         self.inner = inner
 
     def forward(self, x):
-        # assert isinstance(self.SU, nn.Parameter), type(self.SU)
-        # assert isinstance(self.SV, nn.Parameter), type(self.SV)
-
         out_dim, in_dim = self.out_dim, self.in_dim
-        
         had_left_T, K_left = get_hadK(in_dim)
         if had_left_T is not None:
             had_left_T = had_left_T.T.contiguous()
             assert had_left_T.requires_grad == False
-        
         had_right, K_right = get_hadK(out_dim)
         if had_right is not None:
             assert had_right.requires_grad == False
-
         input_shape = x.shape
         assert input_shape[-1] == in_dim
-
         x = x.view(-1, in_dim)
         # x = x.to(torch.float32)
         x = x * self.SU
         x = matmul_hadU_cuda(x, had_left_T, K_left) / 32
         # x = x.to(torch.float16)
-
         x = self.inner(x)
-
         # x = x.to(torch.float32)
         x = matmul_hadU_cuda(x, had_right, K_right)
         x = x * self.SV * 32
         # x = x.to(torch.float16)
-
         x = x.reshape(tuple(input_shape[:-1]) + (out_dim,))
-
         return x
 
 ####
@@ -738,6 +723,12 @@ def main():
 
         assert name.endswith('.pth')
         tensor_name_prefix = name[:-len('.pth')]
+
+        quantized_weight = torch.load(os.path.join(best_model_path, name), map_location='cpu')
+        quantized_weight.unwrap_codes_()
+        print(quantized_weight.state_dict())
+        assert False
+
         best_model_state_dict.update({
             tensor_name_prefix + '.' + k: v
             for k, v in torch.load(os.path.join(best_model_path, name), map_location='cpu').state_dict().items()
