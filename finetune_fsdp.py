@@ -753,7 +753,7 @@ def main():
         args.dataset_name = dataset
         quantized_model = quantized_model.to('cuda:0')
         amp_dtype = args.amp_dtype if args.amp_dtype is not None else original_dtype
-        evaluate_perplexity(quantized_model, testloader, args.model_seqlen, device='cuda:0', amp_dtype=amp_dtype)
+        print(evaluate_perplexity(quantized_model, testloader, args.model_seqlen, device='cuda:0', amp_dtype=amp_dtype))
 
     return
 
