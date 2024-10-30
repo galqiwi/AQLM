@@ -749,7 +749,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
         )
         args.dataset_name = dataset
-        quantized_model = quantized_model.to('cuda:0')
+        quantized_model = quantized_model.to('cuda:0').to(torch.bfloat16)
         evaluate_perplexity(quantized_model, testloader, args.model_seqlen, device='cuda:0')
 
     return
