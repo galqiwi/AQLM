@@ -761,8 +761,8 @@ def main():
 
     from eval import get_zero_shots
 
-    print(get_zero_shots(quantized_model.to(torch.bfloat16), task_list=['hellaswag'], num_fewshots=1))
-    print(get_zero_shots(quantized_model.to(torch.bfloat16), task_list=['arc_easy', 'arc_challenge', 'hellaswag', 'winogrande', 'piqa'], num_fewshots=1))
+    print(get_zero_shots(quantized_model.to(torch.bfloat16).to('cuda:0'), task_list=['hellaswag'], num_fewshots=1))
+    print(get_zero_shots(quantized_model.to(torch.bfloat16).to('cuda:0'), task_list=['arc_easy', 'arc_challenge', 'hellaswag', 'winogrande', 'piqa'], num_fewshots=1))
 
     return
 
