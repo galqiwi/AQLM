@@ -705,12 +705,13 @@ def main():
     add_finetuning_args(parser)
     args = parser.parse_args()
 
-    quantized_model = get_model(
-        args.base_model, args.quantized_model, dtype=args.load_dtype, trust_remote_code=args.trust_remote_code,
-        attn_implementation=args.attn_implementation
-    )
+    base_model = load_base_model(args, 'cuda:0')
+    # get_model(
+    #     args.base_model, args.quantized_model, dtype=args.load_dtype, trust_remote_code=args.trust_remote_code,
+    #     attn_implementation=args.attn_implementation
+    # )
 
-    print(quantized_model)
+    print(base_model)
 
     import os
 
@@ -764,7 +765,7 @@ def main():
     from eval import get_zero_shots
 
     # wandb.log(get_zero_shots(quantized_model.to(torch.bfloat16).to('cuda:0'), task_list=['hellaswag'], num_fewshots=1))
-    wandb.log(get_zero_shots(quantized_model.to(torch.bfloat16).to('cuda:0'), task_list=['arc_easy', 'arc_challenge', 'winogrande', 'piqa'], num_fewshots=1))
+    wandb.log(get_zero_shots(base_model.to(torch.bfloat16).to('cuda:0'), task_list=['arc_easy', 'arc_challenge', 'winogrande', 'piqa'], num_fewshots=1))
 
     return
 
