@@ -755,9 +755,11 @@ def main():
     #     amp_dtype = args.amp_dtype if args.amp_dtype is not None else original_dtype
     #     print(evaluate_perplexity(quantized_model, testloader, args.model_seqlen, device='cuda:0', amp_dtype=amp_dtype))
 
-    quantized_model = quantized_model.to('cuda:0')
-    for name, param in quantized_model.named_parameters():
-        print(name, param.shape, param.dtype)
+    # quantized_model = quantized_model.to('cuda:0')
+    # for name, param in quantized_model.named_parameters():
+    #     print(name, param.shape, param.dtype)
+
+    print(get_zero_shots(model, task_list=['arc_easy'], num_fewshots=1))
 
     return
 
