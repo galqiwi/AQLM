@@ -737,8 +737,23 @@ def main():
 
     quantized_model.load_state_dict(best_model_state_dict)
 
+    datasets = ["wikitext2", "c4"]
+    if args.new_eval:
+        datasets = ["wikitext2", "c4-new"]
+    for dataset in datasets:
+        testloader = get_loaders(
+            dataset,
+            seed=args.seed,
+            model_path=args.model_path,
+            seqlen=args.model_seqlen,
+            eval_mode=True,
+            use_fast_tokenizer=args.use_fast_tokenizer,
+            trust_remote_code=args.trust_remote_code,
+        )
+        args.dataset_name = dataset
+        perplexity_eval(model, testloader, args)
 
-    assert False
+    return
 
     assert torch.cuda.is_available() and torch.distributed.is_available()
     torch.distributed.init_process_group()
