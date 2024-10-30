@@ -740,8 +740,8 @@ def main():
         tensor_name = name[:-len('.pth')]
         best_model_state_dict[tensor_name] = torch.load(os.path.join(best_model_path, name), map_location='cpu')
 
-    for key in best_model_state_dict:
-        if key not in quantized_model.state_dict():
+    for key in quantized_model.state_dict():
+        if key not in best_model_path:
             print(key)
 
     assert len(best_model_state_dict) == len(quantized_model.state_dict())
