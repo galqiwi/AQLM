@@ -734,7 +734,7 @@ def main():
     for name in os.listdir(best_model_path):
         print(f'loding {name}')
         if name == 'non_quantized_state_dict.pth':
-            print(torch.load(os.path.join(best_model_path, name), map_location='cpu'))
+            best_model_state_dict.update(torch.load(os.path.join(best_model_path, name), map_location='cpu'))
             continue
 
         assert name.endswith('.pth')
