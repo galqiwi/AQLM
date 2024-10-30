@@ -738,8 +738,6 @@ def main():
     quantized_model.load_state_dict(best_model_state_dict)
 
     datasets = ["wikitext2", "c4"]
-    if args.new_eval:
-        datasets = ["wikitext2", "c4-new"]
     for dataset in datasets:
         testloader = get_loaders(
             dataset,
