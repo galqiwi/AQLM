@@ -749,7 +749,7 @@ def main():
             trust_remote_code=args.trust_remote_code,
         )
         args.dataset_name = dataset
-        evaluate_perplexity(quantized_model, testloader, args.seqlen, device='cuda:0')
+        evaluate_perplexity(quantized_model, testloader, args.model_seqlen, device='cuda:0')
 
     return
 
