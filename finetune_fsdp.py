@@ -738,7 +738,7 @@ def main():
 
         assert name.endswith('.pth')
         tensor_name = name[:-len('.pth')]
-        best_model_state_dict[tensor_name] = torch.load(os.path.join(best_model_path, name))
+        best_model_state_dict[tensor_name] = torch.load(os.path.join(best_model_path, name), map_location='cpu')
 
     assert False
 
