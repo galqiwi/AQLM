@@ -727,6 +727,10 @@ def main():
 
     print(quantized_model)
 
+    import os
+
+    print(os.listdir(args.save))
+
     assert False
 
     assert torch.cuda.is_available() and torch.distributed.is_available()
