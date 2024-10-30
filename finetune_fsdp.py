@@ -749,7 +749,7 @@ def main():
 
     print(quantized_model.state_dict().keys())
 
-    assert len(best_model_state_dict) == len(quantized_model.state_dict())
+    assert sorted(quantized_model.state_dict().keys()) == len(best_model_state_dict.keys())
     print('loaded best model state dict')
 
 
