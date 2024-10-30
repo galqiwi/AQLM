@@ -735,6 +735,8 @@ def main():
     assert sorted(quantized_model.state_dict().keys()) == sorted(best_model_state_dict.keys())
     print('loaded best model state dict')
 
+    quantized_model.load_state_dict(best_model_state_dict)
+
 
     assert False
 
