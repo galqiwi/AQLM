@@ -723,7 +723,7 @@ def main():
     quantized_model = get_model(
         args.base_model, args.quantized_model, dtype=args.load_dtype, trust_remote_code=args.trust_remote_code,
         attn_implementation=args.attn_implementation
-    ).to(args.master_dtype)
+    )
 
     print(quantized_model)
 
