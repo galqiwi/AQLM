@@ -741,7 +741,7 @@ def main():
         best_model_state_dict[tensor_name] = torch.load(os.path.join(best_model_path, name), map_location='cpu')
 
     for key in quantized_model.state_dict():
-        if key not in best_model_path:
+        if key not in best_model_state_dict:
             print(key)
 
     assert len(best_model_state_dict) == len(quantized_model.state_dict())
