@@ -742,7 +742,7 @@ def main():
         testloader = get_loaders(
             dataset,
             seed=args.seed,
-            model_path=args.model_path,
+            model_path=args.base_model,
             seqlen=args.model_seqlen,
             eval_mode=True,
             use_fast_tokenizer=args.use_fast_tokenizer,
