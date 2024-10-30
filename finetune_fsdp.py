@@ -741,6 +741,8 @@ def main():
         tensor_name = name[:-len('.pth')]
         best_model_state_dict[tensor_name] = torch.load(os.path.join(best_model_path, name), map_location='cpu')
 
+    assert len(best_model_state_dict) == len(quantized_model.state_dict())
+
     assert False
 
     assert torch.cuda.is_available() and torch.distributed.is_available()
