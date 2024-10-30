@@ -737,8 +737,11 @@ def main():
             continue
 
         assert name.endswith('.pth')
-        tensor_name = name[:-len('.pth')]
-        best_model_state_dict[tensor_name] = torch.load(os.path.join(best_model_path, name), map_location='cpu')
+        tensor_name_prefix = name[:-len('.pth')]
+        best_model_state_dict.update({
+            tensor_name_prefix + k: v
+            for k, v in torch.load(os.path.join(best_model_path, name), map_location='cpu').state_dict().items()
+        })
 
     for key in quantized_model.state_dict():
         if key not in best_model_state_dict:
