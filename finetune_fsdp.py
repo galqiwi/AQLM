@@ -729,7 +729,16 @@ def main():
 
     import os
 
-    print(os.listdir(args.save))
+    best_model_path = os.path.join(args.save, 'best_model')
+    best_model_state_dict = {}
+    for name in os.listdir(best_model_path):
+        print(f'loding {name}')
+        if name == 'non_quantized_state_dict.pth':
+            continue
+
+        assert name.endswith('.pth')
+        tensor_name = name[:-len('.pth')]
+        best_model_state_dict[tensor_name] = torch.load(os.path.join(best_model_path, name))
 
     assert False
 
