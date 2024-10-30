@@ -739,7 +739,7 @@ def main():
         assert name.endswith('.pth')
         tensor_name_prefix = name[:-len('.pth')]
         best_model_state_dict.update({
-            tensor_name_prefix + k: v
+            tensor_name_prefix + '.' + k: v
             for k, v in torch.load(os.path.join(best_model_path, name), map_location='cpu').state_dict().items()
         })
 
