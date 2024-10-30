@@ -761,7 +761,7 @@ def main():
 
     from eval import get_zero_shots
 
-    print(get_zero_shots(quantized_model, task_list=['arc_easy'], num_fewshots=1))
+    print(get_zero_shots(quantized_model.to(torch.float32), task_list=['arc_easy'], num_fewshots=1))
 
     return
 
