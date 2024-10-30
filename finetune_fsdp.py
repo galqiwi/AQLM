@@ -732,7 +732,6 @@ def main():
     best_model_path = os.path.join(args.save, 'best_model')
     best_model_state_dict = {}
     for name in os.listdir(best_model_path):
-        print(f'loding {name}')
         if name == 'non_quantized_state_dict.pth':
             best_model_state_dict.update(torch.load(os.path.join(best_model_path, name), map_location='cpu'))
             continue
@@ -741,7 +740,13 @@ def main():
         tensor_name = name[:-len('.pth')]
         best_model_state_dict[tensor_name] = torch.load(os.path.join(best_model_path, name), map_location='cpu')
 
+    for key in best_model_state_dict:
+        if key not in quantized_model.state_dict():
+            print(key)
+
     assert len(best_model_state_dict) == len(quantized_model.state_dict())
+    print('loaded best model state dict')
+
 
     assert False
 
