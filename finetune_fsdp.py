@@ -732,7 +732,7 @@ def main():
             for k, v in quantized_weight.state_dict().items()
         })
 
-    assert sorted(quantized_model.state_dict().keys()) == sorted(best_model_state_dict.state_dict().keys())
+    assert sorted(quantized_model.state_dict().keys()) == sorted(best_model_state_dict.keys())
     print('loaded best model state dict')
 
 
