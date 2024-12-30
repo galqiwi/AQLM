@@ -62,7 +62,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class args:  # wannabe argparse namespace
-    model_name = "unsloth/Llama-3.2-3B"
+    model_name = "unsloth/Llama-3.2-1B"
     torch_dtype = "auto"
     compute_dtype = None  # used for computing activations
     dataset = "pajama"
