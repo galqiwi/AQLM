@@ -40,6 +40,54 @@ class QuantizedWeight(nn.Module):
     def __init__(
         self,
         *,
+        codes: torch.Tensor,
+        codebooks: torch.Tensor,
+        scales: Optional[torch.Tensor],
+        scales_clusters: Optional[torch.Tensor],
+        scales_indices: Optional[torch.Tensor],
+        out_features: int,
+        in_features: int,
+        out_group_size: int,
+        in_group_size: int,
+        num_codebooks: int,
+        nbits_per_codebook: int,
+        codebook_value_nbits: int,
+        codebook_value_num_groups: int,
+        scale_nbits: int,
+        scales_are_lossless: bool,
+        straight_through_gradient: Optional[bool],
+    ):
+        super().__init__()
+        self.out_features = out_features
+        self.in_features = in_features
+        self.out_group_size = out_group_size
+        self.in_group_size = in_group_size
+        self.num_codebooks = num_codebooks
+        self.nbits_per_codebook = nbits_per_codebook
+        self.codebook_size = 2**nbits_per_codebook
+        self.codebook_value_nbits = codebook_value_nbits
+        self.codebook_value_num_groups = codebook_value_num_groups
+        self.codebook_value_clusters = None
+        self.scale_nbits = scale_nbits
+        self.scales_are_lossless = scales_are_lossless
+        self.straight_through_gradient = straight_through_gradient
+
+        self.codebooks = nn.Parameter(
+            codebooks, requires_grad=True
+        )  # [num_codebooks, codebook_size, out_group_size, in_group_size]
+        self.codes: Optional[nn.Parameter] = nn.Parameter(
+            codes, requires_grad=False
+        )  # [num_out_groups, num_in_groups, num_codebooks]
+        self.codes_storage: Optional[IntCodes] = None  # storage for FSDP compatibility
+
+        self.scales = nn.Parameter(scales, requires_grad=True) if scales is not None else None
+        self.scales_clusters = nn.Parameter(scales_clusters, requires_grad=True) if scales_clusters is not None else None
+        self.scales_indices = nn.Parameter(scales_indices, requires_grad=False) if scales_indices is not None else None
+
+    @classmethod
+    def from_unquantized(
+        cls,
+        *,
         reference_weight: torch.Tensor,
         in_group_size: int,
         out_group_size: int,
@@ -51,51 +99,42 @@ class QuantizedWeight(nn.Module):
         straight_through_gradient: Optional[bool] = None,
         code_dtype: torch.dtype = torch.int32,
         **init_kwargs,
-    ):
-        super().__init__()
-        self.out_features, self.in_features = reference_weight.shape
-        assert self.in_features % in_group_size == 0
-        assert self.out_features % out_group_size == 0
+    ) -> "QuantizedWeight":
+        out_features, in_features = reference_weight.shape
+        assert in_features % in_group_size == 0
+        assert out_features % out_group_size == 0
         if nbits_per_codebook > torch.iinfo(code_dtype).bits - is_signed(code_dtype):
             raise ValueError(f"Code dtype cannot store {nbits_per_codebook} bits; please specify code_dtype manually")
 
-        self.out_group_size, self.in_group_size = out_group_size, in_group_size
-        self.num_codebooks = num_codebooks
-        self.nbits_per_codebook = nbits_per_codebook
-        self.codebook_size = codebook_size = 2**nbits_per_codebook
-        self.codebook_value_nbits = codebook_value_nbits
-        self.codebook_value_num_groups = codebook_value_num_groups
-        self.codebook_value_clusters = None
+        codebook_size = 2**nbits_per_codebook
 
-        self.scales = self.scales_clusters = self.scales_indices = None
         if straight_through_gradient is None and scale_nbits > 0:
             straight_through_gradient = scale_nbits >= 6
-        self.straight_through_gradient = straight_through_gradient
-        self.scale_nbits = scale_nbits
 
         with torch.no_grad():
             weight_groupwise = reference_weight.reshape(
-                self.out_features // out_group_size, out_group_size, self.in_features // in_group_size, in_group_size
+                out_features // out_group_size, out_group_size, in_features // in_group_size, in_group_size
             ).swapaxes(
                 1, 2
             )  # [num_out_groups, num_in_groups, out_group_size, in_group_size]
 
             if scale_nbits > 0:
-                scales = weight_groupwise.norm(dim=(2, 3), keepdim=True) + self.EPS
+                scales = weight_groupwise.norm(dim=(2, 3), keepdim=True) + cls.EPS
             else:
-                scales = weight_groupwise.flatten(1, -1).norm(dim=-1).view(-1, 1, 1, 1) + self.EPS
+                scales = weight_groupwise.flatten(1, -1).norm(dim=-1).view(-1, 1, 1, 1) + cls.EPS
             # shape [num_out_groups, num_in_groups, 1, 1] if scale_nbits > 0 else [num_out_groups, num_in_groups, 1, 1]
 
-            self.scales_are_lossless = scale_nbits == 0 or scale_nbits >= 16 or (2**scale_nbits >= scales.shape[1])
-            if self.scales_are_lossless or self.straight_through_gradient:
+            scales_are_lossless = scale_nbits == 0 or scale_nbits >= 16 or (2**scale_nbits >= scales.shape[1])
+            scales_clusters = None
+            scales_indices = None
+            if scales_are_lossless or straight_through_gradient:
                 # ^-- this checks if scales can be preserved losslessly
-                self.scales = nn.Parameter(scales, requires_grad=True)
+                pass  # scales stays as-is
             else:
                 scales_clusters, scales_indices, _ = fit_kmeans_1d(scales.flatten(1, -1), k=2**scale_nbits)
-                self.scales_clusters = nn.Parameter(scales_clusters, requires_grad=True)
-                self.scales_indices = nn.Parameter(scales_indices, requires_grad=False)
+                scales = None
 
-            weight_for_init = (weight_groupwise / scales).swapaxes(1, 2).reshape_as(reference_weight)
+            weight_for_init = (weight_groupwise / (scales if scales is not None else scales_clusters.gather(1, scales_indices)[:, :, None, None])).swapaxes(1, 2).reshape_as(reference_weight)
             del weight_groupwise
 
         codes, codebooks = init_aq_kmeans(
@@ -103,17 +142,28 @@ class QuantizedWeight(nn.Module):
             num_codebooks=num_codebooks,
             out_group_size=out_group_size,
             in_group_size=in_group_size,
-            codebook_size=self.codebook_size,
+            codebook_size=codebook_size,
             **init_kwargs,
         )
 
-        self.codebooks = nn.Parameter(
-            codebooks, requires_grad=True
-        )  # [num_codebooks, codebook_size, out_group_size, in_group_size]
-        self.codes: Optional[nn.Parameter] = nn.Parameter(
-            codes.to(code_dtype), requires_grad=False
-        )  # [num_out_groups, num_in_groups, num_codebooks]
-        self.codes_storage: Optional[IntCodes] = None  # storage for FSDP compatibility
+        return cls(
+            codes=codes.to(code_dtype),
+            codebooks=codebooks,
+            scales=scales,
+            scales_clusters=scales_clusters,
+            scales_indices=scales_indices,
+            out_features=out_features,
+            in_features=in_features,
+            out_group_size=out_group_size,
+            in_group_size=in_group_size,
+            num_codebooks=num_codebooks,
+            nbits_per_codebook=nbits_per_codebook,
+            codebook_value_nbits=codebook_value_nbits,
+            codebook_value_num_groups=codebook_value_num_groups,
+            scale_nbits=scale_nbits,
+            scales_are_lossless=scales_are_lossless,
+            straight_through_gradient=straight_through_gradient,
+        )
 
     def get_codes(self) -> torch.IntTensor:
         """Get a non view to codes, regardless of how codes are stored"""
